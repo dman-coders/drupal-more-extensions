@@ -1,5 +1,7 @@
 <?php
 
+namespace Drupal\DrupalExtension\Context;
+
 use Behat\MinkExtension\Context\RawMinkContext;
 
 /**
@@ -8,7 +10,10 @@ use Behat\MinkExtension\Context\RawMinkContext;
 class ScreenshotContext extends RawMinkContext {
 
   /**
-   * This works for Selenium and other real browsers that support screenshots.
+   * Take a snapshot of the browser.
+   *
+   * This works for phantomjs, Selenium and other real browsers
+   * that support screenshots.
    *
    * http://stackoverflow.com/questions/22630350/how-can-i-write-a-behat-step-that-will-capture-a-screenshot-or-html-page
    *

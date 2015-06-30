@@ -2,9 +2,6 @@
 
 namespace Drupal\DrupalExtension\Context;
 
-use Behat\Behat\Context\TranslatableContext;
-use Behat\Mink\Element\Element;
-
 
 /**
  * Provides additional Drupal user account and authentication actions.
