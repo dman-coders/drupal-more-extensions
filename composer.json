@@ -13,11 +13,11 @@
      }
   ],
   "require": {
-    "drupal/drupalextension": "~3.0",
+    "drupal/drupalextension": "~3.0"
   },
   "autoload": {
     "psr-0": {
       "Drupal\\DrupalExtension": "src/"
     }
-  },
+  }
 }
