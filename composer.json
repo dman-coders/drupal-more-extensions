@@ -2,6 +2,7 @@
   "name": "drupal/drupal-more-extensions",
   "type": "behat-extension",
   "description": "Extended Drupal extensions for Behat",
+  "version": "1.0.0",
   "keywords": ["drupal", "web", "test"],
   "homepage": "http://drupal.org/project/drupalmoreextensions",
   "license": "GPL-2.0+",
