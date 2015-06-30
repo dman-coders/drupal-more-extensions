@@ -1,0 +1,22 @@
+{
+  "name": "drupal/drupal-more-extensions",
+  "type": "behat-extension",
+  "description": "Extended Drupal extensions for Behat",
+  "keywords": ["drupal", "web", "test"],
+  "homepage": "http://drupal.org/project/drupalmoreextensions",
+  "license": "GPL-2.0+",
+  "authors": [
+     {
+       "name": "Dan Morrison",
+       "email": "dan@coders.co.nz"
+     }
+  ],
+  "require": {
+    "drupal/drupalextension": "~3.0",
+  },
+  "autoload": {
+    "psr-0": {
+      "Drupal\\DrupalExtension": "src/"
+    }
+  },
+}
