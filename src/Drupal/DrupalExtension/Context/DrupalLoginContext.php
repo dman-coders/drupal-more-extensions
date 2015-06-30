@@ -120,8 +120,8 @@ class DrupalLoginContext extends RawDrupalContext {
   /**
    * Passive login check.
    *
-   * @Given I am authenticated with Drupal as :arg1 with password :arg2
-   * @Given I am logged in as :arg1 with password :arg2
+   * @Given I am authenticated with Drupal as (user) :arg1 with password :arg2
+   * @Given I am logged in as (user) :arg1 with password :arg2
    *
    * -   * Similar to iLogIn, but checks to see if it's really neccessary
    * -   * to do the login. Does it if needed, but re-uses the session if not.
