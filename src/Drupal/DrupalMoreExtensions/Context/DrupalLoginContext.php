@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\DrupalExtension\Context;
+namespace Drupal\DrupalMoreExtensions\Context;
 
 
 /**

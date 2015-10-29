@@ -2,7 +2,6 @@
   "name": "dman-coders/drupal-more-extensions",
   "type": "behat-extension",
   "description": "Extended Drupal extensions for Behat",
-  "version": "1.0.0",
   "keywords": ["drupal", "web", "test"],
   "homepage": "https://github.com/dman-coders/drupal-more-extensions",
   "license": "GPL-2.0+",
