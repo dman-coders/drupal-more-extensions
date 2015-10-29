@@ -10,6 +10,13 @@ class DrupalLoginContext extends RawDrupalContext {
 
 
   /**
+   * Keep track of available users - provided by the behat.local.yml
+   *
+   * @var array
+   */
+  protected $users = array();
+
+  /**
    * Just a check to assert that this library is being included correctly.
    * Used for internal testing of the features only.
    *
@@ -134,6 +141,24 @@ class DrupalLoginContext extends RawDrupalContext {
 
 
   /**
+   * @Given I am logged in as :name
+   *
+   * Requires that this extension was configured to know the usernames and
+   * passwords already, probably passed in via the behat.local.yml config.
+   */
+  public function assertLoggedInByName($name) {
+    if (!isset($this->users[$name])) {
+      throw new \Exception(sprintf('No user with %s name is registered with the DrupalLoginContext driver.', $name));
+    }
+
+    // Change internal current user.
+    // $this->user = $this->users[$name];
+
+  }
+
+
+
+/**
    * Passive login check.
    *
    * @Given I am authenticated with Drupal as (user) :arg1 with password :arg2

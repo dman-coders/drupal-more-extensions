@@ -17,7 +17,7 @@
   },
   "autoload": {
     "psr-0": {
-      "Drupal\\DrupalExtension": "src/"
+      "Drupal\\DrupalMoreExtensions": "src/"
     }
   }
 }
