@@ -2,6 +2,7 @@
 
 namespace Drupal\DrupalMoreExtensions\Context;
 
+use Drupal\DrupalExtension\Context\RawDrupalContext;
 
 /**
  * Provides additional Drupal user account and authentication actions.
@@ -15,6 +16,33 @@ class DrupalLoginContext extends RawDrupalContext {
    * @var array
    */
   protected $users = array();
+
+  /**
+   * We expect to be given an array of user accounts.
+   *
+   *
+   * The yml can set them during setup as so:
+   *
+   * default:
+   *   suites:
+   *     default:
+   *       contexts:
+   *         - Drupal\DrupalMoreExtensions\Context\DrupalLoginContext:
+   *           users:
+   *             admin:
+   *               username: admin
+   *               password: adminpass
+   *
+   * @param $users
+   */
+  public function __construct($users = array()) {
+    echo('Constructing DrupalLoginContext');
+    echo(print_r(func_get_args(), 1));
+    die('Early death');
+
+    parent::__construct(func_get_args());
+
+  }
 
   /**
    * Just a check to assert that this library is being included correctly.
@@ -55,6 +83,10 @@ class DrupalLoginContext extends RawDrupalContext {
 
   /**
    * @Given I log in to OpenID as :arg1 with password :arg2
+   *
+   * This is a declaritive action, not just a precondition.
+   * This will always clear any existing session and go through the login
+   * screens. Use "I am Authenticated" for a smoother ride.
    */
   public function iLogInToOpenidAsWithPassword($username, $password) {
     // The session is actually destroyed for each case, so yeah,
@@ -94,6 +126,8 @@ class DrupalLoginContext extends RawDrupalContext {
   public function iRememberCookies() {
     $session = $this->getSession();
     $driver = $session->getDriver();
+    $wdSession = $driver->getWebDriverSession();
+
 
     // If there was a session running, check its headers for cookies.
     try {
@@ -123,7 +157,6 @@ class DrupalLoginContext extends RawDrupalContext {
     }
 
     // Abuse the object by adding data directly to it.
-
     #$allValues = $driver->getCookieJar()->allValues($this->getCurrentUrl());
     #$browser_cookies = $wdSession->getAllCookies();
     #$session->remember_cookies = $browser_cookies;
@@ -141,15 +174,19 @@ class DrupalLoginContext extends RawDrupalContext {
 
 
   /**
-   * @Given I am logged in as :name
+   * @Given I am logged in as user :name
    *
    * Requires that this extension was configured to know the usernames and
    * passwords already, probably passed in via the behat.local.yml config.
    */
-  public function assertLoggedInByName($name) {
+  public function iAmLoggedInAsUser($name) {
+    echo("Getting logged in as $name");
+    #$this->printDebug(print_r($this->getMainContext(), 1));
+
     if (!isset($this->users[$name])) {
       throw new \Exception(sprintf('No user with %s name is registered with the DrupalLoginContext driver.', $name));
     }
+
 
     // Change internal current user.
     // $this->user = $this->users[$name];
