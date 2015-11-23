@@ -43,7 +43,6 @@ class ScreenshotContext extends RawMinkContext {
   }
 
 
-
   /**
    * Set the browser width.
    *
@@ -72,7 +71,9 @@ class ScreenshotContext extends RawMinkContext {
       ),
     );
     if (isset($dimensions[$size])) {
-      $this->getSession()->getDriver()->resizeWindow($dimensions[$size]['width'], $dimensions[$size]['height']);
+      $this->getSession()
+        ->getDriver()
+        ->resizeWindow($dimensions[$size]['width'], $dimensions[$size]['height']);
     }
     else {
       throw new Exception('Unknown named screensize');
@@ -90,7 +91,7 @@ class ScreenshotContext extends RawMinkContext {
    *
    * @Then /^show me a screenshot$/
    */
-  public function show_me_a_screenshot() {
+  public function showMeAScreenshot() {
     $image_data = $this->getSession()->getDriver()->getScreenshot();
     $filepath = '/tmp/behat_screenshot.jpg';
     file_put_contents($filepath, $image_data);
@@ -110,7 +111,7 @@ class ScreenshotContext extends RawMinkContext {
    *
    * @Then /^show me the HTML page$/
    */
-  public function show_me_the_html_page_in_the_browser() {
+  public function showMeTheHtmlPageInTheBrowser() {
 
     $html_data = $this->getSession()->getDriver()->getContent();
     $filepath = '/tmp/behat_page.html';
@@ -138,27 +139,79 @@ class ScreenshotContext extends RawMinkContext {
    * https://gist.github.com/amenk/11208415
    */
   public function takeAScreenshotOfAndSave($selector, $filename) {
-    $this->saveScreenshot($filename, '/tmp');
-    // This requires jquery to be available on the page already.
+
+    // Element must be visible on screen - scroll if needed.
+    // The runner 'focus() doesn't do this for us.
+    // Scroll to align bottom by default (if needed) as align top usually
+    // doesn't tell the right story.
+    $js = 'return jQuery("' . $selector . '")[0].scrollIntoView(false);';
+    $this->getSession()->evaluateScript($js);
+
+    // Snapshot the visible screen.
+    $screen_filepath = '/tmp/' . $filename;
+    file_put_contents($screen_filepath, $this->getSession()->getScreenshot());
+
+    // Get element dimensions for cropping.
+    // This calculation requires jquery to be available on the page already.
     $js = 'return jQuery("' . $selector . '")[0].getBoundingClientRect();';
     $pos = $this->getSession()->evaluateScript($js);
+
+    $dst_filepath = $this->getScreenshotPath() . $this->getFilepath($filename);
+    $this->crop_and_save($screen_filepath, $pos, $dst_filepath);
+    echo "Saved element screenshot as $dst_filepath";
+    $this->open_image_file($dst_filepath);
+
+    /////////////////////////////
+    // Create a context thumbnail.
+    $src_image = imagecreatefrompng($screen_filepath);
+    $component_img = imagecreatefrompng($dst_filepath);
+
+    // Blur the full screenshot.
+    imagefilter($src_image, IMG_FILTER_SELECTIVE_BLUR);
+    imagefilter($src_image, IMG_FILTER_BRIGHTNESS, 80);
+    imagefilter($src_image, IMG_FILTER_BRIGHTNESS, -20);
+
+    // Outline the region.
+    $border_width = 10;
+    $border_color = imagecolorallocate($src_image, 255, 64, 64);
+    imagefilledrectangle($src_image , $pos['left'] - $border_width, $pos['top'] - $border_width, $pos['left'] + $pos['width'] + $border_width, $pos['top'] + $pos['height'] + $border_width, $border_color);
+
+    // Paste the (unblurred) cropped image back over top where it was.
+    imagecopy($src_image, $component_img, $pos['left'], $pos['top'], 0, 0, $pos['width'], $pos['height']);
+
+    // Shrink it
+    $percent = 0.2;
+    $width = imagesx($src_image);
+    $height = imagesy($src_image);
+    $newwidth = $width * $percent;
+    $newheight = $height * $percent;
+    $thumb_image = imagecreatetruecolor($newwidth, $newheight);
+    imagecopyresized($thumb_image, $src_image, 0, 0, 0, 0, $newwidth, $newheight, $width, $height);
+
+    $context_filepath =  $dst_filepath = $this->getScreenshotPath() . $this->getFilepath($filename . '-context');
+    imagepng($thumb_image, $context_filepath);
+    #imagepng($src_image, $context_filepath);
+    $this->open_image_file($context_filepath);
+
+  }
+
+  /**
+   * Helper routine to take a slice out of the bigger iamge.
+   *
+   * @param $src_filepath
+   * @param $pos
+   * @param $dst_filepath
+   */
+  function crop_and_save($src_filepath, $pos, $dst_filepath) {
     $dst_image = imagecreatetruecolor(round($pos['width']), round($pos['height']));
-    $src_image = imagecreatefrompng("/tmp/" . $filename);
+    $src_image = imagecreatefrompng($src_filepath);
     imagecopyresampled(
       $dst_image, $src_image,
       0, 0,
       round($pos['left']), round($pos['top']), round($pos['width']), round($pos['height']),
       round($pos['width']), round($pos['height']));
-
-    $screenshotPath = $this->getScreenshotPath();
-    $screenshotFile = $screenshotPath . $this->getFilepath($filename);
-    $this->ensureDirectoryExists($screenshotFile);
-
-    imagepng($dst_image, $screenshotFile);
-
-    echo "Saved element screenshot as $screenshotFile";
-    $this->open_image_file($screenshotFile);
-
+    $this->ensureDirectoryExists($dst_filepath);
+    imagepng($dst_image, $dst_filepath);
   }
 
   /**
@@ -176,7 +229,8 @@ class ScreenshotContext extends RawMinkContext {
   /**
    * Returns the relative file path for the given step
    *
-   * @param StepNode $step
+   * @param $filename
+   *
    * @return string
    */
   protected function getFilepath($filename) {
@@ -214,9 +268,9 @@ class ScreenshotContext extends RawMinkContext {
   protected function ensureDirectoryExists($file) {
     $dir = dirname($file);
     if (!is_dir($dir)) {
-      return mkdir($dir, 0777, true);
+      return mkdir($dir, 0777, TRUE);
     }
-    return true;
+    return TRUE;
   }
 
 }
