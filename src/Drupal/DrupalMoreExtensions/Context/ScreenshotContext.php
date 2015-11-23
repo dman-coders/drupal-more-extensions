@@ -42,6 +42,44 @@ class ScreenshotContext extends RawMinkContext {
     $this->started = new \DateTime();
   }
 
+
+
+  /**
+   * Set the browser width.
+   *
+   * Expected parameters: wide|medium|narrow|mobile
+   *
+   * @Given the viewport is :arg1
+   * @Given the viewport is wide/medium/narrow/mobile
+   */
+  public function theViewportIs($size) {
+    $dimensions = array(
+      'wide' => array(
+        'width' => 1600,
+        'height' => 1080,
+      ),
+      'medium' => array(
+        'width' => 1024,
+        'height' => 800,
+      ),
+      'narrow' => array(
+        'width' => 740,
+        'height' => 600,
+      ),
+      'mobile' => array(
+        'width' => 320,
+        'height' => 480,
+      ),
+    );
+    if (isset($dimensions[$size])) {
+      $this->getSession()->getDriver()->resizeWindow($dimensions[$size]['width'], $dimensions[$size]['height']);
+    }
+    else {
+      throw new Exception('Unknown named screensize');
+    }
+  }
+
+
   /**
    * Take a snapshot of the browser.
    *
