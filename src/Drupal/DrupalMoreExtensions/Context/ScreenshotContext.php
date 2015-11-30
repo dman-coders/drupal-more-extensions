@@ -133,7 +133,7 @@ class ScreenshotContext extends RawMinkContext {
     $image_data = $this->getSession()->getDriver()->getScreenshot();
     $filepath = '/tmp/behat_screenshot.jpg';
     file_put_contents($filepath, $image_data);
-    $this->open_image_file($filepath);
+    $this->openImageFile($filepath);
   }
 
   /**
@@ -143,7 +143,7 @@ class ScreenshotContext extends RawMinkContext {
    *
    * @param $filepath
    */
-  public function open_image_file($filepath) {
+  public function openImageFile($filepath) {
     if (PHP_OS === "Darwin" && PHP_SAPI === "cli") {
       exec('open -a "Preview.app" ' . $filepath);
     }
@@ -212,15 +212,15 @@ class ScreenshotContext extends RawMinkContext {
     $pos = $this->getSession()->evaluateScript($javascript);
 
     $dst_filepath = $this->getScreenshotPath() . $this->getFilepath($filename);
-    $this->crop_and_save($screen_filepath, $pos, $dst_filepath);
+    $this->cropAndSave($screen_filepath, $pos, $dst_filepath);
     echo "Saved element screenshot as $dst_filepath";
-    $this->open_image_file($dst_filepath);
+    $this->openImageFile($dst_filepath);
 
     // Optionally
     // Create a context thumbnail.
     $context_filepath =  $this->getScreenshotPath() . $this->getFilepath($filename . '-context');
     $this->generateContextualizedScreenshotOfElement($screen_filepath, $dst_filepath, $context_filepath, $pos);
-    $this->open_image_file($context_filepath);
+    $this->openImageFile($context_filepath);
   }
 
   /**
@@ -272,7 +272,7 @@ class ScreenshotContext extends RawMinkContext {
    * @param $pos
    * @param $dst_filepath
    */
-  function crop_and_save($src_filepath, $pos, $dst_filepath) {
+  function cropAndSave($src_filepath, $pos, $dst_filepath) {
     $dst_image = imagecreatetruecolor(round($pos['width']), round($pos['height']));
     $src_image = imagecreatefrompng($src_filepath);
     imagecopyresampled(
