@@ -17,6 +17,8 @@ class ScreenshotContext extends RawMinkContext {
   /**
    * Base path for saving screenshots into.
    *
+   * Ends with a '/'.
+   *
    * @var string
    */
   protected $path;
@@ -41,6 +43,34 @@ class ScreenshotContext extends RawMinkContext {
   protected $started;
 
   /**
+   * Location of the XSL used for beautifying the raw item list.
+   */
+  protected $xsl_filepath;
+
+  /**
+   * Internal memo. The last screenshot taken in case of re-use.
+   * @var string
+   */
+  protected $screen_filepath;
+
+  /**
+   * Internal memo. Array of dimensions used for cropping.
+   * @var array
+   */
+  protected $pos;
+
+  /**
+   * Where to link local resources like css and XSL and images relative to.
+   *
+   * This is used to construct URIs in the results. Ends with a /.
+   */
+  protected $resource_dirpath;
+
+  protected $styleguide_data_filepath;
+  protected $styleguide_html_filepath;
+
+
+  /**
    * ScreenshotContext constructor.
    *
    * Set up params - pathname and timestamp for saving the screenshot files.
@@ -62,13 +92,34 @@ class ScreenshotContext extends RawMinkContext {
    * @param $params
    */
   public function __construct($params = array()) {
+
+    // Resource files are expected to be found near this code.
+    $this->resource_dirpath = dirname(__FILE__) . '/';
+    $this->xsl_filepath = $this->resource_dirpath . 'styleguide_presentation.xsl';
+
+    // Set default params - these may also be set from above.
     $params += array(
       'path' => 'screenshots',
       'timestamped' => TRUE,
     );
-
     $this->path = rtrim($params['path'], '/') . '/';
+    $this->ensureDirectoryExists($this->path );
     $this->timestamped = (bool) $params['timestamped'];
+
+    // Additional params.
+    // These get merged in after the path rules are defined,
+    // as that may influence these.
+    $params += array(
+      'styleguide_data_filepath' => $this->path . 'styleguide.rss.xml',
+      'styleguide_html_filepath' => $this->path . 'styleguide.html',
+    );
+    // The generated files get saved relative to the test run itself.
+    // Unless otherwise set from above by params.
+    $this->styleguide_data_filepath = $params['styleguide_data_filepath'];
+    $this->styleguide_html_filepath = $params['styleguide_html_filepath'];
+    $this->ensureDirectoryExists($this->styleguide_data_filepath);
+    $this->ensureDirectoryExists($this->styleguide_html_filepath);
+
     $this->started = new \DateTime();
     # TODO - the start time is currently only per-scanario, to per test run.
     # so it's not doing its job as a collective run-task grouper.
@@ -137,19 +188,6 @@ class ScreenshotContext extends RawMinkContext {
   }
 
   /**
-   * Helper function for diagnostics. Throw the file into a desktop viewer.
-   *
-   * This will need to be different per OS.
-   *
-   * @param $filepath
-   */
-  public function openImageFile($filepath) {
-    if (PHP_OS === "Darwin" && PHP_SAPI === "cli") {
-      exec('open -a "Preview.app" ' . $filepath);
-    }
-  }
-
-  /**
    * This works for the Goutte driver and I assume other HTML-only ones.
    *
    * http://stackoverflow.com/questions/22630350/how-can-i-write-a-behat-step-that-will-capture-a-screenshot-or-html-page
@@ -192,6 +230,8 @@ class ScreenshotContext extends RawMinkContext {
    * @Then /^take a screenshot of "([^"]*)" and save as "([^"]*)"$/
    * @Then I take a screenshot of :arg1 and save :arg2
    *
+   * The selector defined here is expected to be a jquery selector.
+   *
    * https://gist.github.com/amenk/11208415
    */
   public function takeAScreenshotOfAndSave($selector, $filename) {
@@ -203,25 +243,112 @@ class ScreenshotContext extends RawMinkContext {
     $this->getSession()->evaluateScript($javascript);
 
     // Snapshot the visible screen.
-    $screen_filepath = '/tmp/' . $filename;
-    file_put_contents($screen_filepath, $this->getSession()->getScreenshot());
+    $this->screen_filepath = '/tmp/' . $filename;
+    file_put_contents($this->screen_filepath, $this->getSession()->getScreenshot());
 
     // Get element dimensions for cropping.
     // This calculation requires jquery to be available on the page already.
     $javascript = 'return jQuery("' . $selector . '")[0].getBoundingClientRect();';
-    $pos = $this->getSession()->evaluateScript($javascript);
+    $this->pos = $this->getSession()->evaluateScript($javascript);
 
     $dst_filepath = $this->getScreenshotPath() . $this->getFilepath($filename);
-    $this->cropAndSave($screen_filepath, $pos, $dst_filepath);
+    $this->cropAndSave($this->screen_filepath, $this->pos, $dst_filepath);
     echo "Saved element screenshot as $dst_filepath";
     $this->openImageFile($dst_filepath);
 
-    // Optionally
-    // Create a context thumbnail.
-    $context_filepath =  $this->getScreenshotPath() . $this->getFilepath($filename . '-context');
-    $this->generateContextualizedScreenshotOfElement($screen_filepath, $dst_filepath, $context_filepath, $pos);
-    $this->openImageFile($context_filepath);
+    return $dst_filepath;
   }
+
+  /**
+   * @Then I take a screenshot of :arg1 and describe it as :arg2
+   *
+   * Used to generate a larger report summary of snapshotted elements.
+   */
+  public function iTakeAScreenshotOfAndDescribeItAs($selector, $description) {
+    // Generate auto-filename.
+    $url = $this->getSession()->getCurrentUrl();
+    $path = parse_url($url, PHP_URL_PATH);
+    $filename = $this->sanitizeString($path . '--' . $selector);
+
+    // Now do the screenshotting
+    $dst_filepath = $this->takeAScreenshotOfAndSave($selector, $filename);
+    // Also to the contextual screenshot
+    $context_filepath =  $this->getScreenshotPath() . $this->getFilepath($filename . '-context');
+    $this->generateContextualizedScreenshotOfElement($dst_filepath, $context_filepath);
+
+    // Append this new entry to the running list.
+    $channel = $this->getStyleguideDOM($this->styleguide_data_filepath);
+    $xml = $channel->ownerDocument;
+    $media_ns = "http://search.yahoo.com/mrss/";
+
+    // If an entry with this ID exists, replace it. Maintaining the order.
+    // Can't use getElementByID safely without exceptions, so xpath.
+    $xp = new \DOMXPath($xml);
+    $existing = $xp->query("//item[guid = '" . $filename . "']")->item(0);
+
+    if ($existing) {
+      $item = $xml->createElement('item');
+      $existing->parentNode->replaceChild($item, $existing);
+      $item->setAttribute('id', $filename);
+    }
+    else {
+      $item = $xml->createElement('item');
+      $item->setAttribute('id', $filename);
+      $channel->appendChild($item);
+    }
+
+    $item->appendChild($xml->createElement('title', $description));
+    $item->appendChild($xml->createElement('description', $selector));
+    $item->appendChild($xml->createElement('guid', $filename));
+
+
+    $screenshot = $xml->createElementNS($media_ns, 'media:content');
+    $item->appendChild($screenshot);
+    $rel_path = $this->dissolveUrl($this->styleguide_data_filepath, $dst_filepath);
+    $screenshot->setAttribute('url', $rel_path);
+    $screenshot->setAttribute('type', 'image/png');
+    $screenshot->setAttribute('isDefault', 'true');
+    $context = $xml->createElementNS($media_ns, 'media:content');
+    $item->appendChild($context);
+    $rel_path = $this->dissolveUrl($this->styleguide_data_filepath, $context_filepath);
+    $context->setAttribute('url', $rel_path);
+    $context->setAttribute('type', 'image/png');
+
+    // Save the result.
+    file_put_contents($this->styleguide_data_filepath, $xml->saveXML());
+    print("Updated $this->styleguide_data_filepath");
+
+    $this->iRebuildTheStyleguide();
+
+  }
+
+  /**
+   * @Then I rebuild the style guide
+   *
+   * Used to generate a larger report summary of snapshotted elements.
+   * Not sure if this is really the thing to call as an action, or as a helper.
+   * Use the behat verbing anyway, for consistency.
+   */
+  public function iRebuildTheStyleguide() {
+    // After updating the item list, regenerate the HTML also, to
+    // avoid XSLT for folk that don't play that.
+    $xp = new \XsltProcessor();
+    $xsl = new \DOMDocument;
+    $xsl->load($this->xsl_filepath);
+    $xp->importStylesheet($xsl);
+    // Pass in the optional location to pull css from.
+    $xp->setParameter('', 'resource_dirpath', $this->resource_dirpath);
+
+    $xml = new \DOMDocument;
+    $xml->load($this->styleguide_data_filepath);
+
+    $html = $xp->transformToXML($xml);
+    file_put_contents($this->styleguide_html_filepath, $html);
+    print("Updated $this->styleguide_html_filepath");
+  }
+  /**
+   * Utility helpers below here...
+   */
 
   /**
    * Create a context thumbnail of the selected element inside the whole page.
@@ -237,8 +364,12 @@ class ScreenshotContext extends RawMinkContext {
    * @param array $pos
    *   Location and dimensions of the element.
    */
-  private function generateContextualizedScreenshotOfElement($screen_filepath, $element_filepath, $context_filepath, $pos) {
-    $src_image = imagecreatefrompng($screen_filepath);
+  private function generateContextualizedScreenshotOfElement($element_filepath, $context_filepath) {
+    // Pull these values from the current objects memory to avoid passing them
+    // around too much.
+    $src_image = imagecreatefrompng($this->screen_filepath);
+    $pos = $this->pos;
+
     $component_img = imagecreatefrompng($element_filepath);
 
     // Blur the full screenshot.
@@ -302,6 +433,55 @@ class ScreenshotContext extends RawMinkContext {
   }
 
   /**
+   * Either fetch and load, or initialize a new RSS-like data storage XML file.
+   *
+   * @param $styleguide_data_filepath
+   *
+   * @return DOMDocument
+   */
+  private function getStyleguideDOM($filepath) {
+    $media_ns = "http://search.yahoo.com/mrss/";
+    if (file_exists($filepath)) {
+      $xml = new \DOMDocument();
+      $xml->load($filepath);
+      $channels = $xml->getElementsByTagName('channel');
+      $channel = $channels->item(0);
+    }
+    else {
+      $xml = new \DOMDocument( "1.0", "utf-8" );
+      // Stylesheet to start with.
+      $xslt = $xml->createProcessingInstruction('xml-stylesheet', 'type="text/xsl" href="' . $this->xsl_filepath . '"');
+      $xml->appendChild($xslt);
+      // add RSS and CHANNEL nodes.
+      $rss = $xml->createElement('rss');
+      $xml->appendChild($rss);
+      $rss->setAttribute('version', '2.0');
+      $channel = $xml->createElement('channel');
+      $rss->appendChild($channel);
+      $rss->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:media', $media_ns);
+      // I would like to add metadata about the running test context about now.
+      $channel->appendChild($xml->createElement('generator', __CLASS__));
+    }
+    return $channel;
+  }
+
+
+
+  /**
+   * Helper function for diagnostics. Throw the file into a desktop viewer.
+   *
+   * This will need to be different per OS.
+   *
+   * @param $filepath
+   */
+  public function openImageFile($filepath) {
+    if (PHP_OS === "Darwin" && PHP_SAPI === "cli") {
+      exec('open -a "Preview.app" ' . $filepath);
+    }
+  }
+
+
+  /**
    * Returns the relative file path for the given step
    *
    * @param $filename
@@ -312,7 +492,7 @@ class ScreenshotContext extends RawMinkContext {
     // It would be better if I created a folder structure named after the
     // feature being tested. But I can't TELL which task or step is
     // currently running. It's difficult to get that from the context.
-    return $this->formatString($filename) . '.png';
+    return $this->sanitizeString($filename) . '.png';
   }
 
   /**
@@ -321,14 +501,59 @@ class ScreenshotContext extends RawMinkContext {
    * @param string $string
    * @return string
    */
-  protected function formatString($string) {
+  protected function sanitizeString($string) {
     $string = preg_replace('/[^\w\s\-]/', '', $string);
     $string = preg_replace('/[\s\-]+/', '-', $string);
+    $string = trim($string, '-');
     return $string;
   }
 
   /**
+   * If I were in $base, and trying to find my way to $url, resolve a path.
+   *
+   * Used to ensure the data xml (and the resulting html) links to the local
+   * images no matter what user-defined storage paths were provided for either.
+   *
+   * Very incomplete- does not really do URLs yet, just paths.
+   *
+   * @param $base
+   * @param $url
+   */
+  protected function dissolveUrl($base, $url) {
+    // eg
+    // 'subfolder/base.htm
+    // 'subfolder/style.css
+    // should return
+    // 'style.css
+
+
+    // 'local/path/base.htm
+    // 'local/resources/style.css
+    // should return
+    // '../resources/style.css
+    $base_path_parts = explode('/', parse_url($base, PHP_URL_PATH));
+    if (!empty(end($base_path_parts))) {
+      array_pop($base_path_parts);
+    }
+    $url_path_parts = explode('/', parse_url($url, PHP_URL_PATH));
+    $trimming = TRUE;
+    $new_url = $url_path_parts;
+    foreach ($base_path_parts as $i => $segment) {
+      if ($trimming && $base_path_parts[$i] == $url_path_parts[$i]) {
+        // shorten them.
+        array_shift($new_url);
+      }
+      else {
+        array_unshift($new_url, '..');
+      }
+    }
+    return implode('/', $new_url);
+  }
+
+  /**
    * Ensure the directory where the file will be saved exists.
+   *
+   * Run this often, as timestamped saves will need it.
    *
    * @param string $file
    * @return boolean
