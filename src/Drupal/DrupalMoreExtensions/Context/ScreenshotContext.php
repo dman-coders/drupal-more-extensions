@@ -43,11 +43,6 @@ class ScreenshotContext extends RawMinkContext {
   protected $started;
 
   /**
-   * Location of the XSL used for beautifying the raw item list.
-   */
-  protected $xsl_filepath;
-
-  /**
    * Internal memo. The last screenshot taken in case of re-use.
    * @var string
    */
@@ -58,17 +53,6 @@ class ScreenshotContext extends RawMinkContext {
    * @var array
    */
   protected $pos;
-
-  /**
-   * Where to link local resources like css and XSL and images relative to.
-   *
-   * This is used to construct URIs in the results. Ends with a /.
-   */
-  protected $resource_dirpath;
-
-  protected $styleguide_data_filepath;
-  protected $styleguide_html_filepath;
-
 
   /**
    * ScreenshotContext constructor.
@@ -105,21 +89,6 @@ class ScreenshotContext extends RawMinkContext {
     $this->path = rtrim($params['path'], '/') . '/';
     $this->ensureDirectoryExists($this->path );
     $this->timestamped = (bool) $params['timestamped'];
-
-    // Additional params.
-    // These get merged in after the path rules are defined,
-    // as that may influence these.
-    $params += array(
-      'styleguide_data_filepath' => $this->path . 'styleguide.rss.xml',
-      'styleguide_html_filepath' => $this->path . 'styleguide.html',
-    );
-    // The generated files get saved relative to the test run itself.
-    // Unless otherwise set from above by params.
-    $this->styleguide_data_filepath = $params['styleguide_data_filepath'];
-    $this->styleguide_html_filepath = $params['styleguide_html_filepath'];
-    $this->ensureDirectoryExists($this->styleguide_data_filepath);
-    $this->ensureDirectoryExists($this->styleguide_html_filepath);
-
     $this->started = new \DateTime();
     # TODO - the start time is currently only per-scanario, to per test run.
     # so it's not doing its job as a collective run-task grouper.
@@ -239,6 +208,9 @@ class ScreenshotContext extends RawMinkContext {
     // Element must be visible on screen - scroll if needed.
     // Scroll to align bottom by default (if needed) as align top usually
     // doesn't tell the right story.
+    // Note, scroll has no effect in phantomjs, as the whole window is pictured.
+    // OTOH, if the browser window doesn't show the whole thing, you'll get
+    // black spots.
     $javascript = 'return jQuery("' . $selector . '")[0].scrollIntoView(false);';
     $this->getSession()->evaluateScript($javascript);
 
@@ -260,141 +232,8 @@ class ScreenshotContext extends RawMinkContext {
   }
 
   /**
-   * @Then I take a screenshot of :arg1 and describe it as :arg2
-   *
-   * Used to generate a larger report summary of snapshotted elements.
-   */
-  public function iTakeAScreenshotOfAndDescribeItAs($selector, $description) {
-    // Generate auto-filename.
-    $url = $this->getSession()->getCurrentUrl();
-    $path = parse_url($url, PHP_URL_PATH);
-    $filename = $this->sanitizeString($path . '--' . $selector);
-
-    // Now do the screenshotting
-    $dst_filepath = $this->takeAScreenshotOfAndSave($selector, $filename);
-    // Also to the contextual screenshot
-    $context_filepath =  $this->getScreenshotPath() . $this->getFilepath($filename . '-context');
-    $this->generateContextualizedScreenshotOfElement($dst_filepath, $context_filepath);
-
-    // Append this new entry to the running list.
-    $channel = $this->getStyleguideDOM($this->styleguide_data_filepath);
-    $xml = $channel->ownerDocument;
-    $media_ns = "http://search.yahoo.com/mrss/";
-
-    // If an entry with this ID exists, replace it. Maintaining the order.
-    // Can't use getElementByID safely without exceptions, so xpath.
-    $xp = new \DOMXPath($xml);
-    $existing = $xp->query("//item[guid = '" . $filename . "']")->item(0);
-
-    if ($existing) {
-      $item = $xml->createElement('item');
-      $existing->parentNode->replaceChild($item, $existing);
-      $item->setAttribute('id', $filename);
-    }
-    else {
-      $item = $xml->createElement('item');
-      $item->setAttribute('id', $filename);
-      $channel->appendChild($item);
-    }
-
-    $item->appendChild($xml->createElement('title', $description));
-    $item->appendChild($xml->createElement('description', $selector));
-    $item->appendChild($xml->createElement('guid', $filename));
-
-
-    $screenshot = $xml->createElementNS($media_ns, 'media:content');
-    $item->appendChild($screenshot);
-    $rel_path = $this->dissolveUrl($this->styleguide_data_filepath, $dst_filepath);
-    $screenshot->setAttribute('url', $rel_path);
-    $screenshot->setAttribute('type', 'image/png');
-    $screenshot->setAttribute('isDefault', 'true');
-    $context = $xml->createElementNS($media_ns, 'media:content');
-    $item->appendChild($context);
-    $rel_path = $this->dissolveUrl($this->styleguide_data_filepath, $context_filepath);
-    $context->setAttribute('url', $rel_path);
-    $context->setAttribute('type', 'image/png');
-
-    // Save the result.
-    file_put_contents($this->styleguide_data_filepath, $xml->saveXML());
-    print("Updated $this->styleguide_data_filepath");
-
-    $this->iRebuildTheStyleguide();
-
-  }
-
-  /**
-   * @Then I rebuild the style guide
-   *
-   * Used to generate a larger report summary of snapshotted elements.
-   * Not sure if this is really the thing to call as an action, or as a helper.
-   * Use the behat verbing anyway, for consistency.
-   */
-  public function iRebuildTheStyleguide() {
-    // After updating the item list, regenerate the HTML also, to
-    // avoid XSLT for folk that don't play that.
-    $xp = new \XsltProcessor();
-    $xsl = new \DOMDocument;
-    $xsl->load($this->xsl_filepath);
-    $xp->importStylesheet($xsl);
-    // Pass in the optional location to pull css from.
-    $xp->setParameter('', 'resource_dirpath', $this->resource_dirpath);
-
-    $xml = new \DOMDocument;
-    $xml->load($this->styleguide_data_filepath);
-
-    $html = $xp->transformToXML($xml);
-    file_put_contents($this->styleguide_html_filepath, $html);
-    print("Updated $this->styleguide_html_filepath");
-  }
-  /**
    * Utility helpers below here...
    */
-
-  /**
-   * Create a context thumbnail of the selected element inside the whole page.
-   *
-   * Helper function for takeAScreenshotOfAndSave().
-   *
-   * @param string $screen_filepath
-   *   Full page image file path.
-   * @param string $element_filepath
-   *   Already generated element image file path.
-   * @param string $context_filepath
-   *   Destination path to save the highlighted compostie into.
-   * @param array $pos
-   *   Location and dimensions of the element.
-   */
-  private function generateContextualizedScreenshotOfElement($element_filepath, $context_filepath) {
-    // Pull these values from the current objects memory to avoid passing them
-    // around too much.
-    $src_image = imagecreatefrompng($this->screen_filepath);
-    $pos = $this->pos;
-
-    $component_img = imagecreatefrompng($element_filepath);
-
-    // Blur the full screenshot.
-    imagefilter($src_image, IMG_FILTER_SELECTIVE_BLUR);
-    imagefilter($src_image, IMG_FILTER_BRIGHTNESS, 80);
-    imagefilter($src_image, IMG_FILTER_BRIGHTNESS, -20);
-
-    // Outline the region.
-    $border_width = 10;
-    $border_color = imagecolorallocate($src_image, 255, 64, 64);
-    imagefilledrectangle($src_image , $pos['left'] - $border_width, $pos['top'] - $border_width, $pos['left'] + $pos['width'] + $border_width, $pos['top'] + $pos['height'] + $border_width, $border_color);
-
-    // Paste the (unblurred) cropped image back over top where it was.
-    imagecopy($src_image, $component_img, $pos['left'], $pos['top'], 0, 0, $pos['width'], $pos['height']);
-
-    // Shrink it all
-    $percent = 0.25;
-    $width = imagesx($src_image);
-    $height = imagesy($src_image);
-    $newwidth = $width * $percent;
-    $newheight = $height * $percent;
-    $thumb_image = imagecreatetruecolor($newwidth, $newheight);
-    imagecopyresampled($thumb_image, $src_image, 0, 0, 0, 0, $newwidth, $newheight, $width, $height);
-    imagepng($thumb_image, $context_filepath);
-  }
 
   /**
    * Helper routine to take a slice out of the bigger iamge.
@@ -431,41 +270,6 @@ class ScreenshotContext extends RawMinkContext {
       return $this->path;
     }
   }
-
-  /**
-   * Either fetch and load, or initialize a new RSS-like data storage XML file.
-   *
-   * @param $styleguide_data_filepath
-   *
-   * @return DOMDocument
-   */
-  private function getStyleguideDOM($filepath) {
-    $media_ns = "http://search.yahoo.com/mrss/";
-    if (file_exists($filepath)) {
-      $xml = new \DOMDocument();
-      $xml->load($filepath);
-      $channels = $xml->getElementsByTagName('channel');
-      $channel = $channels->item(0);
-    }
-    else {
-      $xml = new \DOMDocument( "1.0", "utf-8" );
-      // Stylesheet to start with.
-      $xslt = $xml->createProcessingInstruction('xml-stylesheet', 'type="text/xsl" href="' . $this->xsl_filepath . '"');
-      $xml->appendChild($xslt);
-      // add RSS and CHANNEL nodes.
-      $rss = $xml->createElement('rss');
-      $xml->appendChild($rss);
-      $rss->setAttribute('version', '2.0');
-      $channel = $xml->createElement('channel');
-      $rss->appendChild($channel);
-      $rss->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:media', $media_ns);
-      // I would like to add metadata about the running test context about now.
-      $channel->appendChild($xml->createElement('generator', __CLASS__));
-    }
-    return $channel;
-  }
-
-
 
   /**
    * Helper function for diagnostics. Throw the file into a desktop viewer.
@@ -506,48 +310,6 @@ class ScreenshotContext extends RawMinkContext {
     $string = preg_replace('/[\s\-]+/', '-', $string);
     $string = trim($string, '-');
     return $string;
-  }
-
-  /**
-   * If I were in $base, and trying to find my way to $url, resolve a path.
-   *
-   * Used to ensure the data xml (and the resulting html) links to the local
-   * images no matter what user-defined storage paths were provided for either.
-   *
-   * Very incomplete- does not really do URLs yet, just paths.
-   *
-   * @param $base
-   * @param $url
-   */
-  protected function dissolveUrl($base, $url) {
-    // eg
-    // 'subfolder/base.htm
-    // 'subfolder/style.css
-    // should return
-    // 'style.css
-
-
-    // 'local/path/base.htm
-    // 'local/resources/style.css
-    // should return
-    // '../resources/style.css
-    $base_path_parts = explode('/', parse_url($base, PHP_URL_PATH));
-    if (!empty(end($base_path_parts))) {
-      array_pop($base_path_parts);
-    }
-    $url_path_parts = explode('/', parse_url($url, PHP_URL_PATH));
-    $trimming = TRUE;
-    $new_url = $url_path_parts;
-    foreach ($base_path_parts as $i => $segment) {
-      if ($trimming && $base_path_parts[$i] == $url_path_parts[$i]) {
-        // shorten them.
-        array_shift($new_url);
-      }
-      else {
-        array_unshift($new_url, '..');
-      }
-    }
-    return implode('/', $new_url);
   }
 
   /**
