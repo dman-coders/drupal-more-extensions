@@ -95,8 +95,9 @@ class StyleguideContext extends ScreenshotContext{
     $scenarioTitle = $scenario->getTitle();
     print_r($scenarioTitle);
 
-    // This docs pointed at this method to get a handle on neighbouring contexts
-    $minkContext = $environment->getContext('Behat\MinkExtension\Context\MinkContext');
+    // The docs pointed at this method to get a handle on neighbouring contexts
+    //$minkContext = $environment->getContext('Behat\MinkExtension\Context\MinkContext');
+    // WIP...
   }
 
   /**

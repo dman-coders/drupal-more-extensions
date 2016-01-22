@@ -13,9 +13,13 @@ class DrupalLoginContext extends RawDrupalContext {
   /**
    * Keep track of available users - provided by the behat.local.yml
    *
+   * This is different from the $users list which is managed by
+   * RawDrupalContext and enumerates the temporary test users
+   * (and will delet them at the end of the run)
+   *
    * @var array
    */
-  protected $users = array();
+  protected $user_credentials = array();
 
   /**
    * We expect to be given an array of user accounts.
@@ -36,12 +40,15 @@ class DrupalLoginContext extends RawDrupalContext {
    * @param $users
    */
   public function __construct($users = array()) {
-    echo('Constructing DrupalLoginContext');
-    echo(print_r(func_get_args(), 1));
-    die('Early death');
-
-    parent::__construct(func_get_args());
-
+    echo('Constructing DrupalLoginContext, initializing user credentials');
+    // Set default user list - these values are expected to be set from above.
+    $users += array(
+      'admin' => array('username' => 'dummy', 'password' => 'dummy'),
+      'editor' => array('username' => 'dummy', 'password' => 'dummy'),
+      'member' => array('username' => 'dummy', 'password' => 'dummy'),
+    );
+    $this->user_credentials = $users;
+    //
   }
 
   /**
@@ -57,12 +64,6 @@ class DrupalLoginContext extends RawDrupalContext {
     }
   }
 
-  /**
-   * @Given I wait :arg1 seconds
-   */
-  public function iWaitSeconds($seconds) {
-    $this->getSession()->wait($seconds * 1000);
-  }
 
   /**
    * @Given I log in to Drupal as :arg1 with password :arg2
@@ -79,6 +80,22 @@ class DrupalLoginContext extends RawDrupalContext {
     $element->fillField('pass', $password);
     $submit = $element->findButton('Log in');
     $submit->click();
+    // Verify that this worked.
+
+    $actual = $this->getSession()->getPage()->getContent();
+    // Find the message. Drupal MessageContext can't be called from here?
+    $selectorObjects = $this->getSession()->getPage()->findAll("css", '.messages');
+    $messages = "";
+    foreach ($selectorObjects as $selectorObject) {
+      $messages .= $selectorObject->getText();
+    }
+
+    if (!$this->loggedIn()) {
+      #print_r($actual);
+      print_r($messages);
+      throw new \Exception(sprintf("Failed to log in as user '%s'. '%s'", $username, $messages));
+    }
+
   }
 
   /**
@@ -167,7 +184,13 @@ class DrupalLoginContext extends RawDrupalContext {
    * There is probably an available lib for this elsewhere, but it's hard to find.
    */
   private function _responseContains($text) {
-    $actual = $this->getSession()->getPage()->getContent();
+    // Beware premature response-checking! It throws exception.
+    if ((! $this->getSession()) || (! $this->getSession()->getPage())) {
+      return FALSE;
+    }
+    // TODO find how to safely check if there even is a response to check.
+    $actual = @$this->getSession()->getPage()->getContent();
+
     $regex  = '/'.preg_quote($text, '/').'/ui';
     return(bool) preg_match($regex, $actual);
   }
@@ -269,6 +292,7 @@ class DrupalLoginContext extends RawDrupalContext {
     // Can I tell if I'm running in API/drush context?
     #print_r(array_keys((array)$this));
 
+    print("Generating superuser password reset/back-end login");
     $drush_response = trim($this->getDriver()->drush('user-login --browser=0 1'));
     // I now have a login reset link for UID1
     $url_parts = parse_url($drush_response);
@@ -278,7 +302,7 @@ class DrupalLoginContext extends RawDrupalContext {
     $actual = $this->getSession()->getPage()->getContent();
     // I should see superadmin username etc.
     // TODO a test here to check the text on the reset page.
-    # print_r($actual);
+    #print_r($actual);
   }
 
   /**
