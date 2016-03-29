@@ -78,6 +78,7 @@ class StyleguideContext extends ScreenshotContext{
    */
   public function gatherContexts(\Behat\Behat\Hook\Scope\BeforeScenarioScope $scope)
   {
+    /*
     print_r(array_keys((array)$scope));
     $environment = $scope->getEnvironment();
     print_r(array_keys((array)$environment));
@@ -94,7 +95,7 @@ class StyleguideContext extends ScreenshotContext{
 
     $scenarioTitle = $scenario->getTitle();
     print_r($scenarioTitle);
-
+    */
     // The docs pointed at this method to get a handle on neighbouring contexts
     //$minkContext = $environment->getContext('Behat\MinkExtension\Context\MinkContext');
     // WIP...
