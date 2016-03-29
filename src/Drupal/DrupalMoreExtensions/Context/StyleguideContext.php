@@ -1,9 +1,12 @@
 <?php
+/**
+ * @file
+ * Extends the screenshot-ability to generate a styleguide report.
+ */
 
 namespace Drupal\DrupalMoreExtensions\Context;
 
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
-
 
 /**
  * Extends the screenshot-ability to generate a styleguide report.
@@ -12,22 +15,35 @@ use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
  */
 class StyleguideContext extends ScreenshotContext{
 
-  /** @var string Location of the XSL used for beautifying the raw item list.  */
-  protected $xsl_filepath;
+  /**
+   * Location of the XSL used for beautifying the raw item list.
+   *
+   * @var string
+   */
+  protected $xslFilepath;
 
   /**
-   * @var string
    * Where to link local resources like css and XSL and images relative to.
    *
    * This is used to construct URIs in the results. Ends with a /.
+   *
+   * @var string
    */
-  protected $resource_dirpath;
+  protected $resourceDirpath;
 
-  /** @var string Filepath to save the RSS-like XML analysis data into. */
-  protected $styleguide_data_filepath;
+  /**
+   * Filepath to save the RSS-like XML analysis data into.
+   *
+   * @var string
+   */
+  protected $styleguideDataFilepath;
 
-  /** @var string Filepath to save the HTML report into. */
-  protected $styleguide_html_filepath;
+  /**
+   * Filepath to save the HTML report into.
+   *
+   * @var string
+   */
+  protected $styleguideHtmlFilepath;
 
 
   /**
@@ -36,6 +52,7 @@ class StyleguideContext extends ScreenshotContext{
    * Set up params.
    *
    * @param string[] $params
+   *   List of arbitrary parameters. @see parent.
    */
   public function __construct($params = array()) {
     // Run the parent constructor first, as that initializes the path.
@@ -45,25 +62,25 @@ class StyleguideContext extends ScreenshotContext{
     // These get merged in after the path rules are defined,
     // as that may influence these.
     $defaults = array(
-      'styleguide_data_filepath' => $this->path . 'styleguide.rss.xml',
-      'styleguide_html_filepath' => $this->path . 'styleguide.html',
+      'styleguideDataFilepath' => $this->path . 'styleguide.rss.xml',
+      'styleguideHtmlFilepath' => $this->path . 'styleguide.html',
     );
     $params += $defaults;
     // The generated files get saved relative to the test run itself.
     // Unless otherwise set from above by params.
-    $this->styleguide_data_filepath = $params['styleguide_data_filepath'];
-    $this->styleguide_html_filepath = $params['styleguide_html_filepath'];
+    $this->styleguideDataFilepath = $params['styleguideDataFilepath'];
+    $this->styleguideHtmlFilepath = $params['styleguideHtmlFilepath'];
     // Paranoia protects us.
     foreach ($defaults as $param => $default) {
       if (empty($this->$param)) {
-        throw new  InvalidConfigurationException("Required data file path $param undefined. Expected something like '$default'");
+        throw new InvalidConfigurationException("Required data file path $param undefined. Expected something like '$default'");
       }
       if (is_dir($this->$param)) {
-        throw new  InvalidConfigurationException("Required data file path $param '{$this->$param}' is a dir not a file. Expected something like '$default'");
+        throw new InvalidConfigurationException("Required data file path $param '{$this->$param}' is a dir not a file. Expected something like '$default'");
       }
     }
-    $this->ensureDirectoryExists($this->styleguide_data_filepath);
-    $this->ensureDirectoryExists($this->styleguide_html_filepath);
+    $this->ensureDirectoryExists($this->styleguideDataFilepath);
+    $this->ensureDirectoryExists($this->styleguideHtmlFilepath);
   }
 
   /**
@@ -76,8 +93,7 @@ class StyleguideContext extends ScreenshotContext{
    *
    * http://behat.readthedocs.org/en/v3.0/guides/3.hooks.html#scenario-hooks
    */
-  public function gatherContexts(\Behat\Behat\Hook\Scope\BeforeScenarioScope $scope)
-  {
+  public function gatherContexts(\Behat\Behat\Hook\Scope\BeforeScenarioScope $scope) {
     /*
     print_r(array_keys((array)$scope));
     $environment = $scope->getEnvironment();
@@ -102,24 +118,24 @@ class StyleguideContext extends ScreenshotContext{
   }
 
   /**
-   * @Then I take a screenshot of :arg1 and describe it as :arg2
-   *
    * Used to generate a larger report summary of snapshotted elements.
+   *
+   * @Then I take a screenshot of :arg1 and describe it as :arg2
    */
-  public function iTakeAScreenshotOfAndDescribeItAs($selector, $description) {
+  public function takeScreenshotOfAndDescribeItAs($selector, $description) {
     // Generate auto-filename.
     $url = $this->getSession()->getCurrentUrl();
     $path = parse_url($url, PHP_URL_PATH);
     $filename = $this->sanitizeString($path . '--' . $selector);
 
-    // Now do the screenshotting
-    $dst_filepath = $this->takeAScreenshotOfAndSave($selector, $filename);
-    // Also to the contextual screenshot
-    $context_filepath =  $this->getScreenshotPath() . $this->getFilepath($filename . '-context');
+    // Now do the screenshotting.
+    $dst_filepath = $this->takeScreenshotOfAndSaveAs($selector, $filename);
+    // Also to the contextual screenshot.
+    $context_filepath = $this->getScreenshotPath() . $this->getFilepath($filename . '-context');
     $this->generateContextualizedScreenshotOfElement($dst_filepath, $context_filepath);
 
     // Append this new entry to the running list.
-    $channel = $this->getStyleguideDOM($this->styleguide_data_filepath);
+    $channel = $this->getStyleguideDOM($this->styleguideDataFilepath);
     $xml = $channel->ownerDocument;
     $media_ns = "http://search.yahoo.com/mrss/";
 
@@ -143,31 +159,29 @@ class StyleguideContext extends ScreenshotContext{
     $item->appendChild($xml->createElement('description', $selector));
     $item->appendChild($xml->createElement('guid', $filename));
 
-
     $screenshot = $xml->createElementNS($media_ns, 'media:content');
     $item->appendChild($screenshot);
-    $rel_path = $this->dissolveUrl($this->styleguide_data_filepath, $dst_filepath);
+    $rel_path = $this->dissolveUrl($this->styleguideDataFilepath, $dst_filepath);
     $screenshot->setAttribute('url', $rel_path);
     $screenshot->setAttribute('type', 'image/png');
     $screenshot->setAttribute('isDefault', 'true');
     $context = $xml->createElementNS($media_ns, 'media:content');
     $item->appendChild($context);
-    $rel_path = $this->dissolveUrl($this->styleguide_data_filepath, $context_filepath);
+    $rel_path = $this->dissolveUrl($this->styleguideDataFilepath, $context_filepath);
     $context->setAttribute('url', $rel_path);
     $context->setAttribute('type', 'image/png');
 
     // Save the result.
-    file_put_contents($this->styleguide_data_filepath, $xml->saveXML());
-    print("Updated $this->styleguide_data_filepath");
+    file_put_contents($this->styleguideDataFilepath, $xml->saveXML());
+    print("Updated $this->styleguideDataFilepath");
 
     $this->iRebuildTheStyleguide();
 
   }
 
   /**
-   * @Then I rebuild the style guide
-   *
    * Used to generate a larger report summary of snapshotted elements.
+   *
    * Not sure if this is really the thing to call as an action, or as a helper.
    * Use the behat verbing anyway, for consistency.
    *
@@ -176,29 +190,31 @@ class StyleguideContext extends ScreenshotContext{
    * So you can process individual fragments, and rebuild this
    * report, without re-running every analysis each time.
    * Only the changes are changed.
+   *
+   * @Then I rebuild the style guide
    */
   public function iRebuildTheStyleguide() {
     // After updating the item list, regenerate the HTML also, to
     // avoid XSLT for folk that don't play that.
     $xslt = new \XsltProcessor();
     $xsl = new \DOMDocument;
-    $xsl->load($this->xsl_filepath);
+    $xsl->load($this->xslFilepath);
     $xslt->importStylesheet($xsl);
 
     // Pass in the optional location to pull css from.
     // This relative reference calculation probably won't stand up
     // to portability, but may help enough during local testing.
-    $resource_dirpath = $this->dissolveUrl(realpath($this->styleguide_html_filepath), realpath($this->resource_dirpath)) . '/';
-    $xslt->setParameter('', 'resource_dirpath', $resource_dirpath);
+    $resourceDirpath = $this->dissolveUrl(realpath($this->styleguideHtmlFilepath), realpath($this->resourceDirpath)) . '/';
+    $xslt->setParameter('', 'resourceDirpath', $resourceDirpath);
     // Inlining would have been much easier ;-).
     // In fact, spitting out HTML and not doing XSL would too.
 
     $xml = new \DOMDocument;
-    $xml->load($this->styleguide_data_filepath);
+    $xml->load($this->styleguideDataFilepath);
 
     $html = $xslt->transformToXML($xml);
-    file_put_contents($this->styleguide_html_filepath, $html);
-    print("Updated $this->styleguide_html_filepath");
+    file_put_contents($this->styleguideHtmlFilepath, $html);
+    print("Updated $this->styleguideHtmlFilepath");
   }
 
   /**
@@ -220,7 +236,7 @@ class StyleguideContext extends ScreenshotContext{
   private function generateContextualizedScreenshotOfElement($element_filepath, $context_filepath) {
     // Pull these values from the current objects memory to avoid passing them
     // around too much.
-    $src_image = imagecreatefrompng($this->screen_filepath);
+    $src_image = imagecreatefrompng($this->screenFilepath);
     $pos = $this->pos;
 
     $component_img = imagecreatefrompng($element_filepath);
@@ -233,12 +249,12 @@ class StyleguideContext extends ScreenshotContext{
     // Outline the region.
     $border_width = 10;
     $border_color = imagecolorallocate($src_image, 255, 64, 64);
-    imagefilledrectangle($src_image , $pos['left'] - $border_width, $pos['top'] - $border_width, $pos['left'] + $pos['width'] + $border_width, $pos['top'] + $pos['height'] + $border_width, $border_color);
+    imagefilledrectangle($src_image, $pos['left'] - $border_width, $pos['top'] - $border_width, $pos['left'] + $pos['width'] + $border_width, $pos['top'] + $pos['height'] + $border_width, $border_color);
 
     // Paste the (unblurred) cropped image back over top where it was.
     imagecopy($src_image, $component_img, $pos['left'], $pos['top'], 0, 0, $pos['width'], $pos['height']);
 
-    // Shrink it all
+    // Shrink it all.
     $percent = 0.25;
     $width = imagesx($src_image);
     $height = imagesy($src_image);
@@ -254,8 +270,10 @@ class StyleguideContext extends ScreenshotContext{
    * Either fetch and load, or initialize a new RSS-like data storage XML file.
    *
    * @param string $filepath
+   *   Filepath of the source data.
    *
    * @return \DOMElement
+   *   Dom to add data to (or pull from).
    */
   private function getStyleguideDOM($filepath) {
     $media_ns = "http://search.yahoo.com/mrss/";
@@ -269,9 +287,9 @@ class StyleguideContext extends ScreenshotContext{
     else {
       $xml = new \DOMDocument( "1.0", "utf-8" );
       // Stylesheet to start with.
-      $xslt = $xml->createProcessingInstruction('xml-stylesheet', 'type="text/xsl" href="' . $this->xsl_filepath . '"');
+      $xslt = $xml->createProcessingInstruction('xml-stylesheet', 'type="text/xsl" href="' . $this->xslFilepath . '"');
       $xml->appendChild($xslt);
-      // add RSS and CHANNEL nodes.
+      // Add RSS and CHANNEL nodes.
       $rss = $xml->createElement('rss');
       $xml->appendChild($rss);
       $rss->setAttribute('version', '2.0');
@@ -292,9 +310,9 @@ class StyleguideContext extends ScreenshotContext{
    *
    * Very incomplete- does not really do URLs yet, just paths.
    *
-   * @param $base
+   * @param string $base
    *   Page path.
-   * @param $url
+   * @param string $url
    *   Resource path, relative to the same place $base was.
    *
    * @return string
@@ -302,15 +320,15 @@ class StyleguideContext extends ScreenshotContext{
    */
   protected function dissolveUrl($base, $url) {
     // eg
-    // 'subfolder/base.htm
-    // 'subfolder/style.css
+    // 'subfolder/base.htm'
+    // 'subfolder/style.css'
     // should return
-    // 'style.css
-
-    // 'local/path/base.htm
-    // 'local/resources/style.css
+    // 'style.css'
+    //
+    // 'local/path/base.htm'
+    // 'local/resources/style.css'
     // should return
-    // '../resources/style.css
+    // '../resources/style.css'.
     $base_path_parts = explode('/', parse_url($base, PHP_URL_PATH));
     if (!empty(end($base_path_parts))) {
       array_pop($base_path_parts);
@@ -320,7 +338,7 @@ class StyleguideContext extends ScreenshotContext{
     $new_url = $url_path_parts;
     foreach ($base_path_parts as $i => $segment) {
       if ($trimming && $base_path_parts[$i] == $url_path_parts[$i]) {
-        // shorten them.
+        // Shorten them.
         array_shift($new_url);
       }
       else {
