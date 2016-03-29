@@ -151,7 +151,7 @@ class StyleguideContext extends ScreenshotContext {
    */
   public function afterScenario(\Behat\Behat\Hook\Scope\AfterScenarioScope $scope) {
     # print __FUNCTION__;
-    this->rebuildTheStyleguide();
+    $this->rebuildTheStyleguide();
   }
 
 
