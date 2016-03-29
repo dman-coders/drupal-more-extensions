@@ -234,6 +234,17 @@ class ScreenshotContext extends RawMinkContext {
   public function takeScreenshotOfAndSaveAs($selector, $filename) {
 
     // Element must be visible on screen - scroll if needed.
+
+    // First assert the element selector can be found.
+    // I attempted to use the same logic that MinkContext elementExists() does,
+    // but failed. Instead:
+    $javascript = 'return jQuery("' . $selector . '")[0];';
+    $element = $this->getSession()->evaluateScript($javascript);
+    if (NULL === $element) {
+      throw new \Behat\Mink\Exception\ElementNotFoundException($this->getSession()->getDriver(), 'element', 'id|name|label|value|placeholder', $selector);
+    }
+
+
     // Scroll to align bottom by default (if needed) as align top usually
     // doesn't tell the right story.
     // Note, scroll has no effect in phantomjs, as the whole window is pictured.

@@ -13,7 +13,7 @@ use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
  *
  * Produces an XML list and an HTML display of the named page elements.
  */
-class StyleguideContext extends ScreenshotContext{
+class StyleguideContext extends ScreenshotContext {
 
   /**
    * Location of the XSL used for beautifying the raw item list.
@@ -81,41 +81,80 @@ class StyleguideContext extends ScreenshotContext{
     }
     $this->ensureDirectoryExists($this->styleguideDataFilepath);
     $this->ensureDirectoryExists($this->styleguideHtmlFilepath);
+
+    // This runs for each Scenario
+    // (so these params will not be available at the Suite or Feature level)
+    print __FUNCTION__;
   }
 
   /**
-   * @BeforeScenario
-   *
+   * @BeforeSuite
+   */
+  public static function setup(\Behat\Testwork\Hook\Scope\BeforeSuiteScope $scope) {
+    print __FUNCTION__;
+  }
+
+  /** @AfterSuite */
+  public static function teardown(\Behat\Testwork\Hook\Scope\AfterSuiteScope $scope) {
+    print __FUNCTION__;
+    // I WOULD LIKE TO:
+    // Generate the styleguide HTML once here, at the end.
+    // But
+    // We are a static function, so cannot call $this->anything
+    // to get at the path settings etc.
+    // and cannot directly invoke rebuildTheStyleguide() without $this.
+    //
+    // Behat\Testwork\Environment\Environment
+    // $env = $scope->getEnvironment();
+    // Behat\Testwork\Suite\Suite
+    // $suite = $env->getSuite();
+    // $contexts = $suite->getSetting('contexts');
+    //
+    // Nope.
+  }
+
+  /** @BeforeFeature */
+  public static function beforeFeature(\Behat\Behat\Hook\Scope\BeforeFeatureScope $scope) {
+    # print __FUNCTION__;
+  }
+
+  /** @AfterFeature */
+  public static function afterFeature(\Behat\Behat\Hook\Scope\AfterFeatureScope $scope) {
+    # print __FUNCTION__;
+  }
+
+  /**
    * This is the point where we can get a handle on the calling harness.
    *
-   * - such as to note the name of the runnning test suite, which is invisible
-   * to us usually. This is used to auto-generate filenames.
+   * Runs immediately after __construct.
+   *
+   * $this, and Local params are available.
+   *
+   * We should be able to note the name of the runnning test suite.
+   * This could be used to auto-generate filenames.
    *
    * http://behat.readthedocs.org/en/v3.0/guides/3.hooks.html#scenario-hooks
+   *
+   * @BeforeScenario
    */
-  public function gatherContexts(\Behat\Behat\Hook\Scope\BeforeScenarioScope $scope) {
-    /*
-    print_r(array_keys((array)$scope));
-    $environment = $scope->getEnvironment();
-    print_r(array_keys((array)$environment));
-    $feature = $scope->getFeature();
-    $scenario = $scope->getScenario();
-    print_r(array_keys((array)$feature));
-    print_r(array_keys((array)$scenario));
-
-
-    $featureTitle = $feature->getTitle();
-    print_r($featureTitle);
-    $featureFile = $feature->getFile();
-    print_r($featureFile);
-
-    $scenarioTitle = $scenario->getTitle();
-    print_r($scenarioTitle);
-    */
-    // The docs pointed at this method to get a handle on neighbouring contexts
-    //$minkContext = $environment->getContext('Behat\MinkExtension\Context\MinkContext');
-    // WIP...
+  public function beforeScenario(\Behat\Behat\Hook\Scope\BeforeScenarioScope $scope) {
+    # print __FUNCTION__;
   }
+
+
+  /**
+   * Wrap up the styleguide display and generate summary.
+   *
+   * http://behat.readthedocs.org/en/v3.0/guides/3.hooks.html#scenario-hooks
+   *
+   * @AfterScenario
+   */
+  public function afterScenario(\Behat\Behat\Hook\Scope\AfterScenarioScope $scope) {
+    # print __FUNCTION__;
+    this->rebuildTheStyleguide();
+  }
+
+
 
   /**
    * Used to generate a larger report summary of snapshotted elements.
@@ -175,7 +214,9 @@ class StyleguideContext extends ScreenshotContext{
     file_put_contents($this->styleguideDataFilepath, $xml->saveXML());
     print("Updated $this->styleguideDataFilepath");
 
-    $this->iRebuildTheStyleguide();
+    // Currently rebuilding on every update. Do that less...
+    // $this->rebuildTheStyleguide();
+    // Shifted into the teardown now :-)
 
   }
 
@@ -193,28 +234,36 @@ class StyleguideContext extends ScreenshotContext{
    *
    * @Then I rebuild the style guide
    */
-  public function iRebuildTheStyleguide() {
+  public function rebuildTheStyleguide() {
     // After updating the item list, regenerate the HTML also, to
     // avoid XSLT for folk that don't play that.
     $xslt = new \XsltProcessor();
-    $xsl = new \DOMDocument;
+    $xsl = new \DOMDocument();
     $xsl->load($this->xslFilepath);
     $xslt->importStylesheet($xsl);
 
     // Pass in the optional location to pull css from.
     // This relative reference calculation probably won't stand up
     // to portability, but may help enough during local testing.
+    //
+    // realpath() isn't good enough if the file has not been made yet...
+    // touch() it first to work around that problem (ugly).
+    touch($this->styleguideHtmlFilepath);
     $resourceDirpath = $this->dissolveUrl(realpath($this->styleguideHtmlFilepath), realpath($this->resourceDirpath)) . '/';
-    $xslt->setParameter('', 'resourceDirpath', $resourceDirpath);
-    // Inlining would have been much easier ;-).
+    $xslt->setParameter('', 'resource_dirpath', $resourceDirpath);
+    // Inlining this would have been much easier ;-).
     // In fact, spitting out HTML and not doing XSL would too.
-
-    $xml = new \DOMDocument;
-    $xml->load($this->styleguideDataFilepath);
+    //
+    // Using getStyleguideDOM will return a valid, empty datadoc even if no data
+    // is initialized yet.
+    // So will produce an empty styleguide if no snapshots were run yet.
+    // But not NULL, which would require more error handling.
+    $channel = $this->getStyleguideDOM($this->styleguideDataFilepath);
+    $xml = $channel->ownerDocument;
 
     $html = $xslt->transformToXML($xml);
     file_put_contents($this->styleguideHtmlFilepath, $html);
-    print("Updated $this->styleguideHtmlFilepath");
+    print("Updated Styleguide $this->styleguideHtmlFilepath");
   }
 
   /**
@@ -285,7 +334,7 @@ class StyleguideContext extends ScreenshotContext{
       $channel = $channels->item(0);
     }
     else {
-      $xml = new \DOMDocument( "1.0", "utf-8" );
+      $xml = new \DOMDocument("1.0", "utf-8");
       // Stylesheet to start with.
       $xslt = $xml->createProcessingInstruction('xml-stylesheet', 'type="text/xsl" href="' . $this->xslFilepath . '"');
       $xml->appendChild($xslt);
