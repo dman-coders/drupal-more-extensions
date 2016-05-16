@@ -117,6 +117,7 @@ class ScreenshotContext extends RawMinkContext {
    * Set the browser width.
    *
    * Expected parameters: wide|medium|narrow|mobile.
+   * Passing in a number pattern like 640x480 will also be accepted.
    *
    * @Given the viewport is :arg1
    * @Given the viewport is wide/medium/narrow/mobile
@@ -141,14 +142,18 @@ class ScreenshotContext extends RawMinkContext {
         'height' => 740,
       ),
     );
+    if (preg_match('/^\d+x\d+$/', $size)) {
+      // Given an XxY string. That'll work too.
+      list($width, $height) = explode('x', $size);
+      $dimensions[$size] = array('width' => $width, 'height' => $height);
+    }
     if (isset($dimensions[$size])) {
       $this->getSession()
         ->getDriver()
         ->resizeWindow($dimensions[$size]['width'], $dimensions[$size]['height']);
     }
     else {
-      // eep, need a namespace on exçeption!?
-      throw new Exception('Unknown named screensize');
+      throw new \InvalidArgumentException("Unknown named screensize. No preset named '$size' is defined.");
     }
   }
 
