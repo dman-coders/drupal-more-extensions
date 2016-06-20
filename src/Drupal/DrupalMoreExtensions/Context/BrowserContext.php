@@ -31,8 +31,17 @@ class BrowserContext extends RawMinkContext {
    *   jQuery('#edit-options').data('verticalTab').tabShow()
    */
   public function iSelectVerticalTab($locator) {
-    echo "Selecting vertical tab $locator";
-    $this->getSession()->executeScript("jQuery('$locator').data('verticalTab').tabShow();");
+    // If no js, the selection doesn't need to happen,
+    // So just ignore the exception that complains that js is not available.
+    $page = $this->getSession()->getPage();
+    // The .vertical-tabs class only appears if javascript has run.
+    if ($page->find('css', ".vertical-tabs " . $locator)) {
+      echo "Selecting vertical tab $locator.";
+      $this->getSession()->executeScript("jQuery('$locator').data('verticalTab').tabShow();");
+    }
+    else {
+      echo "No vertical tab $locator. Assuming we are running no-js and all is well anyway.";
+    }
   }
 
 
