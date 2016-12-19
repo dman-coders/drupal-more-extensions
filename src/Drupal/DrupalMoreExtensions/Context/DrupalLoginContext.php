@@ -216,8 +216,16 @@ class DrupalLoginContext extends RawDrupalContext {
    * @Given I am logged in as user :name
    */
   public function iAmLoggedInAsUser($name) {
-    echo("Getting logged in as $name");
+    echo("Ensuring I am logged in as $name");
     // $this->printDebug(print_r($this->getMainContext(), 1));.
+
+    // If the user account page is named user, that means I'm that.
+    $this->getSession()->visit('/user');
+    if ($this->getSession()->getPage()->find('css', '.h1') == $name) {
+      // Already that user.
+      return TRUE;
+    }
+
     if (!isset($this->users[$name])) {
       throw new \Exception(sprintf('No user with %s name is registered with the DrupalLoginContext driver.', $name));
     }
@@ -276,17 +284,25 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * Use a drush user-login password reset to grab the admin account.
+   * Log in as UID1.
+   *
+   * Uses a backend user-login reset
+   * to grab the admin account.
    *
    * @Given I am logged in as the superuser
    */
   public function iAmLoggedInAsTheSuperuser() {
     // First check if I'm already logged in, as it's slow.
-    $this->getSession()->visit($this->locatePath('/user/1/edit'));
-    if ($this->getSession()->getStatusCode() == 200) {
+    //
+    // Without knowing uid1s name, instead:
+    // If viewing my home account page is /user/1, then I'm #1.
+    $this->getSession()->visit($this->locatePath('/user'));
+    $this->getSession()->getPage()->clickLink('View');
+    if ($this->getSession()->getCurrentUrl() == '/user/1') {
       print("Already super!");
       return TRUE;
     }
+
     // If I was another account, logout.
     $this->logout();
 
@@ -294,18 +310,36 @@ class DrupalLoginContext extends RawDrupalContext {
     // BUT need to run from API first to get the backdoor to reset admin.
     // If I run as API I get blackbox also.
     // Can I tell if I'm running in API/drush context?
-    // print_r(array_keys((array)$this));.
-    print("Generating superuser password reset/back-end login");
+    print("Generating superuser password reset/back-end login\n");
+    // To log in as a user without using the 'login()' I need to
+    // generate a user-login via drush.
+    // TODO - figure what circumstances this works in and which doesn't.
     $drush_response = trim($this->getDriver()->drush('user-login --browser=0 1'));
+    print("Drush said $drush_response\n");
     // I now have a login reset link for UID1.
-    $url_parts = parse_url($drush_response);
+    //
+    // 2016-12
+    // For unknown reasons, sometimes drush 8.0.0 was returning TWO URLs.
+    $urls = preg_split('/\s+/', $drush_response);
+    $url = end($urls);
+
+    $url_parts = parse_url($url);
     // If drush and our session disagree about what the base URL is,
     // due to ports or DNS, that's sad. So just re-resolve the path.
     $this->getSession()->visit($this->locatePath($url_parts['path']));
-    $actual = $this->getSession()->getPage()->getContent();
-    // I should see superadmin username etc.
-    // TODO a test here to check the text on the reset page.
-    // print_r($actual);
+    // Expect to see the "One time only login" here.
+    $this->getSession()->getPage()->pressButton("Log in");
+    # $actual = $this->getSession()->getPage()->getContent();
+    # print_r($actual);
+    // That visit should have logged me in.
+    // Beware - Side effect of checking loggedIn() MAY change the current page!
+    if ($this->loggedIn()) {
+      print "Logged in as UID1";
+      return TRUE;
+    }
+    else {
+      throw new \Exception('Login as UID1 failed.');
+    }
   }
 
   /**
@@ -341,7 +375,9 @@ class DrupalLoginContext extends RawDrupalContext {
    * Credits https://github.com/previousnext/agov/blob/7.x-3.x/tests/behat/bootstrap/FeatureContext.php
    * for drupalextension 1.0 version
    *
-   * @override Given /^I am logged in as a user with the "(?P<role>[^"]*)" role$/
+   * @see DrupalContext::assertAuthenticatedByRole()
+   *
+   * @override XGiven /^I am logged in as a user with the "(?P<role>[^"]*)" role$/
    */
   public function assertAuthenticatedByRole($role) {
     // Check if a user with this role is already logged in.
