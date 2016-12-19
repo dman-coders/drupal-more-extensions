@@ -3,13 +3,17 @@
 namespace Drupal\DrupalMoreExtensions\Context;
 
 use Behat\Mink\Exception\DriverException;
+use Drupal\Driver\Exception\Exception;
 use Drupal\DrupalExtension\Context\RawDrupalContext;
 
 /**
  * Provides additional Drupal user account and authentication actions.
+ *
+ * Uses a lot of session and authentication logins and checks.
+ * Somewhat trivial, but also somewhat volatile when working on black boxes
+ * that may be thrown off by theming changes etc.
  */
 class DrupalLoginContext extends RawDrupalContext {
-
 
   /**
    * Keep track of available users - provided by the behat.local.yml.
@@ -34,19 +38,25 @@ class DrupalLoginContext extends RawDrupalContext {
    *         - Drupal\DrupalMoreExtensions\Context\DrupalLoginContext:
    *           users:
    *             admin:
-   *               username: admin
-   *               password: adminpass
+   *               name: admin
+   *               pass: adminpass
    *
    * @param array[] $users
    *   List of basic user definitions.
    */
   public function __construct($users = array()) {
     echo('Constructing DrupalLoginContext, initializing user credentials');
-    // Set default user list - these values are expected to be set from above.
+    // The provided settings come in as arrays,
+    // but the rest of the system (specifically $this->login()) expects
+    // objects, so cast them to objects now.
+    foreach ((array) $users as $key => $val) {
+      $users[$key] = (object) $val;
+    }
+    // These are just examples, expected to be over-ridden by yml configs.
     $users += array(
-      'admin' => array('username' => 'dummy', 'password' => 'dummy'),
-      'editor' => array('username' => 'dummy', 'password' => 'dummy'),
-      'member' => array('username' => 'dummy', 'password' => 'dummy'),
+      'admin' => (object) array('name' => 'dummy', 'pass' => 'dummy'),
+      'editor' => (object) array('name' => 'dummy', 'pass' => 'dummy'),
+      'member' => (object) array('name' => 'dummy', 'pass' => 'dummy'),
     );
     $this->userCredentials = $users;
   }
@@ -79,7 +89,7 @@ class DrupalLoginContext extends RawDrupalContext {
    *
    * @throws \Exception
    *
-   * @Given I log in to Drupal as :arg1 with password :arg2
+   * @Given I log in to Drupal as (user ):arg1 with password :arg2
    */
   public function iLogInToDrupalAsWithPassword($username, $password) {
     $this->logout();
@@ -90,9 +100,11 @@ class DrupalLoginContext extends RawDrupalContext {
     $submit = $element->findButton('Log in');
     $submit->click();
     // Verify that this worked.
-    $actual = $this->getSession()->getPage()->getContent();
+    # $actual = $this->getSession()->getPage()->getContent();
+
     // Find the message. Drupal MessageContext can't be called from here?
-    $selectorObjects = $this->getSession()->getPage()->findAll("css", '.messages');
+    $message_selector = $this->getDrupalSelector('message_selector');
+    $selectorObjects = $this->getSession()->getPage()->findAll("css", $message_selector);
     $messages = "";
     foreach ($selectorObjects as $selectorObject) {
       $messages .= $selectorObject->getText();
@@ -103,7 +115,8 @@ class DrupalLoginContext extends RawDrupalContext {
       print_r($messages);
       throw new \Exception(sprintf("Failed to log in as user '%s'. '%s'", $username, $messages));
     }
-
+    // If success, update the user object as best I can.
+    $this->checkWhoIAm();
   }
 
   /**
@@ -111,7 +124,7 @@ class DrupalLoginContext extends RawDrupalContext {
    *
    * This is a declaritive action, not just a precondition.
    * This will always clear any existing session and go through the login
-   * screens. Use "I am Authenticated" for a smoother ride.
+   * screens.
    *
    * @Given I log in to OpenID as :arg1 with password :arg2
    */
@@ -128,110 +141,100 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * Serialize browser cookies within the current session.
-   *
-   * BROKEN.
-   * Broken in Behat 3 - used to work in Behat 1. with Seleniums WDriver.
-   *
-   * This will save any current browser cookies into test-session memory
-   * and retrieve any cookies out of the session memory if missing, restoring
-   * them to the browser.
-   *
-   * Making this assertion at any step will enable you to restore browser state
-   * in a later scenario.
-   * It's best not to do this directly, as this breaks the paradigm of tests
-   * being entirely independent, but it can be used to logically keep you
-   * logged in or at a certain state of interaction.
-   *
-   * We are not permitted via the normal API to collect a cookie we don't
-   * know the name of, so can't retrieve SESSed89abb4957e9e8f5889af09647eaf15
-   *
-   * Thus, we need to dig into the sessions web driver a bit deeper.
-   * Problem is, the CoreDriver has made its $client private.
-   *
-   * @Given I remember cookies
-   */
-  public function iRememberCookies() {
-    $session = $this->getSession();
-    $driver = $session->getDriver();
-    $wdSession = $driver->getWebDriverSession();
-
-    // If there was a session running, check its headers for cookies.
-    try {
-      if (!empty($session->getCurrentUrl())) {
-        $response_headers = $driver->getResponseHeaders();
-        // print_r($response_headers);
-      }
-    }
-    catch (DriverException $e) {
-      // Unable to access the request before visiting a page.
-      // Ignore it then.
-    }
-
-    // Restore any cookies that were set.
-    $remembered_cookies = isset($session->remember_cookies) ? $session->remember_cookies : array();
-    // Print "\nRemembered Cookies\n";
-    // print_r($remembered_cookies);
-    // $browser_cookies = $wdSession->getAllCookies();
-    // print "\nBrowser Cookies\n";
-    // print_r($browser_cookies);
-    // Restore them from memory INTO the browser if missing.
-    foreach ($remembered_cookies as $cookie_info) {
-      if (!$session->getCookie($cookie_info['name'])) {
-        // $cookie_data = urldecode($cookie_info['value']);.
-        $session->setCookie($cookie_info['name'], urldecode($cookie_info['value']));
-      }
-    }
-
-    // Abuse the object by adding data directly to it.
-    // $allValues = $driver->getCookieJar()->allValues($this->getCurrentUrl());
-    // $browser_cookies = $wdSession->getAllCookies();
-    // $session->remember_cookies = $browser_cookies;.
-  }
-
-  /**
-   * Utility for checking text.
-   *
-   * There is probably an available lib for this elsewhere,
-   * but it's hard to find.
-   */
-  private function _responseContains($text) {
-    // Beware premature response-checking! It throws exception.
-    if ((!$this->getSession()) || (!$this->getSession()->getPage())) {
-      return FALSE;
-    }
-    // TODO find how to safely check if there even is a response to check.
-    $actual = @$this->getSession()->getPage()->getContent();
-
-    $regex  = '/' . preg_quote($text, '/') . '/ui';
-    return (bool) preg_match($regex, $actual);
-  }
-
-  /**
    * Checks user is authenticated.
    *
    * Requires that this extension was configured to know the usernames and
    * passwords already, probably passed in via the behat.local.yml config.
    *
-   * @Given I am logged in as user :name
+   * @param string|int $name
+   *   User ID or user name.
+   *
+   * @return bool
+   *   Success.
+   *
+   * @throws \Exception
+   *   Named user is not defined in the yml configs.
+   *
+   * @see __construct()
+   *
+   * @Given I am logged in (to Drupal )as (user ):name
+   * @Given I am authenticated (to Drupal )as (user ):name
    */
   public function iAmLoggedInAsUser($name) {
     echo("Ensuring I am logged in as $name");
     // $this->printDebug(print_r($this->getMainContext(), 1));.
 
-    // If the user account page is named user, that means I'm that.
-    $this->getSession()->visit('/user');
-    if ($this->getSession()->getPage()->find('css', '.h1') == $name) {
+    $this->checkWhoIAm();
+    if (!empty($this->user) && $this->user->name == $name) {
       // Already that user.
       return TRUE;
     }
 
-    if (!isset($this->users[$name])) {
-      throw new \Exception(sprintf('No user with %s name is registered with the DrupalLoginContext driver.', $name));
+    if (!isset($this->userCredentials[$name])) {
+      throw new \Exception(sprintf('No user with name "%s" is registered with the DrupalLoginContext driver. Named user accounts test credentials must be defined in the projects yaml file.', $name));
     }
 
     // Change internal current user.
-    // $this->user = $this->users[$name];.
+    // From the internal pre-configured list of users.
+    $this->user = $this->userCredentials[$name];
+    $this->login();
+  }
+
+  public function getPageTitle() {
+    $h1Element = $this->getSession()->getPage()->find('css', 'h1');
+    if (empty($h1Element)) {
+      throw new \Exception('No H1 found on the page ' . $this->getSession()->getCurrentUrl());
+    }
+    return $h1Element->getText();
+  }
+
+  /**
+   * Update the user object as best I can.
+   *
+   * Do that by visiting my own account page and scraping it.
+   * Updates this->user object.
+   */
+  private function checkWhoIAm() {
+    if (!$this->loggedIn()) {
+      unset($this->user);
+      return NULL;
+    }
+    $this->getSession()->visit($this->locatePath('/user'));
+    $username = $this->getPageTitle();
+
+    // Deducing the UID takes deeper scraping.
+    // Locate the 'View' account tab link.
+    $link = $this->getSession()->getPage()->find('css', '.tabs .active a');
+    $link->click();
+    // Exaine the current url (/user/123) to find the UID.
+    $url_parts = parse_url($this->getSession()->getCurrentUrl());
+    $path_parts = explode('/', $url_parts['path']);
+    $uid = $path_parts[2];
+    $this->user = (object) array(
+      'name' => $username,
+      'uid' => $uid,
+    );
+    # print_r($this->user);
+    return $this->user;
+  }
+
+  /**
+   * Checks that the current session is authenticated as a user ID.
+   *
+   * @param int $uid
+   *   User ID.
+   *
+   * @return bool
+   *   Success
+   *
+   * @throws \Exception
+   *   Failure.
+   */
+  public function assertIamUserId($uid) {
+    if ($this->user->uid == $uid) {
+      return TRUE;
+    }
+    throw new \Exception("Not the expected User ID. Expected $uid, got " . $this->user->uid);
   }
 
   /**
@@ -249,20 +252,18 @@ class DrupalLoginContext extends RawDrupalContext {
    * @Given I am logged in as (user) :arg1 with password :arg2
    */
   public function iAmAuthenticatedWithDrupalAsWithPassword($username, $password) {
-    $session = $this->getSession();
-    // If you see this on the screen, you are logged in.
-    $text_showing_you_are_logged_in = "Log out $username";
-    if ($this->_responseContains($text_showing_you_are_logged_in)) {
-      // The page currently showing implies we are logged in,
-      // so if the cookies are good, then we are good to go.
-      // All I have to do is recover the session persistence.
-      $this->iRememberCookies();
+    if ($this->loggedIn()) {
+      $this->checkWhoIAm();
+      if ($this->user->name == $username) {
+        return TRUE;
+      }
+      else {
+        // Logged in, but not as correct user.
+        $this->logout();
+      }
     }
-    else {
-      // This method returns a list of further steps, it
-      // doesn't evaluate them immediately.
-      return $this->iLogInToDrupalAsWithPassword($username, $password);
-    }
+    // Need to log in.
+    return $this->iLogInToDrupalAsWithPassword($username, $password);
   }
 
   /**
@@ -292,14 +293,20 @@ class DrupalLoginContext extends RawDrupalContext {
    * @Given I am logged in as the superuser
    */
   public function iAmLoggedInAsTheSuperuser() {
+    $this->iAmLoggedbyResettingThePasswordFor(1);
+    // And extra-check it went as expected.
+    $this->assertIamUserId(1);
+  }
+
+  /**
+   * Log in using user-password reset.
+   *
+   * @Given I am logged by resetting the password for (user ):user
+   */
+  public function iAmLoggedbyResettingThePasswordFor($name) {
     // First check if I'm already logged in, as it's slow.
-    //
-    // Without knowing uid1s name, instead:
-    // If viewing my home account page is /user/1, then I'm #1.
-    $this->getSession()->visit($this->locatePath('/user'));
-    $this->getSession()->getPage()->clickLink('View');
-    if ($this->getSession()->getCurrentUrl() == '/user/1') {
-      print("Already super!");
+    $this->checkWhoIAm();
+    if (!empty($this->user) && ($this->user->uid == $name ||  $this->user->name == $name)) {
       return TRUE;
     }
 
@@ -310,16 +317,18 @@ class DrupalLoginContext extends RawDrupalContext {
     // BUT need to run from API first to get the backdoor to reset admin.
     // If I run as API I get blackbox also.
     // Can I tell if I'm running in API/drush context?
-    print("Generating superuser password reset/back-end login\n");
+    print("Generating password reset/back-end login\n");
+
     // To log in as a user without using the 'login()' I need to
     // generate a user-login via drush.
     // TODO - figure what circumstances this works in and which doesn't.
-    $drush_response = trim($this->getDriver()->drush('user-login --browser=0 1'));
-    print("Drush said $drush_response\n");
-    // I now have a login reset link for UID1.
+    // The drush command accepts either uid or username.
+    $drush_response = trim($this->getDriver()->drush('user-login --browser=0 $name'));
+    // I now have a login reset link.
     //
     // 2016-12
     // For unknown reasons, sometimes drush 8.0.0 was returning TWO URLs.
+    print("Drush said $drush_response\n");
     $urls = preg_split('/\s+/', $drush_response);
     $url = end($urls);
 
@@ -329,16 +338,17 @@ class DrupalLoginContext extends RawDrupalContext {
     $this->getSession()->visit($this->locatePath($url_parts['path']));
     // Expect to see the "One time only login" here.
     $this->getSession()->getPage()->pressButton("Log in");
-    # $actual = $this->getSession()->getPage()->getContent();
-    # print_r($actual);
+
     // That visit should have logged me in.
     // Beware - Side effect of checking loggedIn() MAY change the current page!
     if ($this->loggedIn()) {
-      print "Logged in as UID1";
+      print "Logged in as $name";
+      // Update the user object.
+      $this->checkWhoIAm();
       return TRUE;
     }
     else {
-      throw new \Exception('Login as UID1 failed.');
+      throw new \Exception("Login as user '$name' failed.");
     }
   }
 
@@ -348,9 +358,9 @@ class DrupalLoginContext extends RawDrupalContext {
    * Credits https://github.com/previousnext/agov/blob/7.x-3.x/tests/behat/bootstrap/FeatureContext.php
    * for drupalextension 1.0 version.
    *
-   * @Given /^an "([^"]*)" user named "([^"]*)"$/
+   * @Given a :role_name user named :username
    */
-  public function anUserNamed($role_name, $username) {
+  public function aRoleUserNamed($role_name, $username) {
     // Create user (and project)
     $user = (object) array(
       'name' => $username,
@@ -420,10 +430,10 @@ class DrupalLoginContext extends RawDrupalContext {
    *
    * Create the named role if it does not exist.
    *
-   * @Given /^a role named "([^"]*)"$/
+   * @Given a role named :role_name
    */
-  public function anRoleNamed($role_name) {
-    // Create a new user.
+  public function CreateRoleNamed($role_name) {
+    // Create a new role.
     $this->getDriver()->roleCreate($role_name);
   }
 
