@@ -151,17 +151,19 @@ class BrowserContext extends RawMinkContext {
       print $e->getMessage();
     }
 
-
     // Would be good if we could get the $driver->setStatusCode()
     // so as to let other checks function normally, but that's off-limits.
   }
 
   /**
-   * @Then /^I should see response status code "?(?P<code>\d+)"?$/
+   * @Then /^the download response status code should be "?(?P<code>\d+)"?$/
    *
    * https://www.jverdeyen.be/php/behat-file-downloads/
+   *
+   * @param int $statusCode
+   *   HTTP response code, eg 200, 403.
    */
-  public function iShouldSeeResponseStatusCode($statusCode) {
+  public function theDownloadResponseStatusCodeShouldBe($statusCode) {
     $responseStatusCode = $this->statusCode;
 
     if (!$responseStatusCode == intval($statusCode)) {
@@ -170,14 +172,17 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
-   * @Then /^I should see in the header "([^"]*)":"([^"]*)"$/
+   * @Then /^the download response header should contain "([^"]*)":"([^"]*)"$/
    *
    * https://www.jverdeyen.be/php/behat-file-downloads/
    */
-  public function iShouldSeeInTheHeader($header, $value) {
-    $headers = $this->headers();
-    if ($headers->get($header) != $value) {
-      throw new \Exception(sprintf("Did not see %s with value %s.", $header, $value));
+  public function theDownloadResponseHeaderShouldContain($header, $value) {
+    if (empty($this->headers[$header])) {
+      throw new \Exception(sprintf("Header did not contain %s.", $header));
+    }
+    // Header values are supplied as an array.
+    if (! in_array($value, $this->headers[$header]) ) {
+      throw new \Exception(sprintf("Header %s did not contain value %s.", $header, $value));
     }
   }
 
