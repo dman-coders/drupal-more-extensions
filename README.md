@@ -1,12 +1,57 @@
 # drupal-more-extensions
 Extended Drupal extensions for Behat
 
+For setup instructions on getting testing for Drupal running,
+see the drupal-extension docs
+https://behat-drupal-extension.readthedocs.io/
+
+This set of 'Contexts' provides a few more sets of actions we can test.
+
+## Install
+
+To include these contexts in your project:
+
+* Include this library in your behat test project composer.json
+
+      {
+        "require": {
+          /* Other stuff */
+          "dman-coders/drupal-more-extensions": "~1.0@dev"
+        },
+        "repositories": [
+          {
+            "type": "vcs",
+            "url": "git@github.com:jhedstrom/drupalextension.git"
+          }
+        ],
+      }
+
+  And run `composer update`.
+
+* Include the DrupalMoreExtensions Context(s) in your behat.yml
+
+      default:
+        suites:
+          default:
+            contexts:
+              - FeatureContext
+              - Drupal\DrupalExtension\Context\DrupalContext
+              /* Other Stuff */
+              - Drupal\DrupalMoreExtensions\Context\BrowserContext
+              - Drupal\DrupalMoreExtensions\Context\ScreenshotContext:
+                  params:
+                    path: 'screenshots'
+                    timestamped: false
+
+  And you should see the new commands become available.
+
+
 ## Features
 
 The actions listed here may be incomplete. Run:
-    behat -dl
+    `behat -dl`
 to list the real state of available definitions.
-    behat -di
+    `behat -di`
 to show the associated action help.
 
 ### Screenshotting actions.
