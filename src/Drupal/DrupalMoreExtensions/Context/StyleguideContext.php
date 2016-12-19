@@ -1,11 +1,13 @@
 <?php
-/**
- * @file
- * Extends the screenshot-ability to generate a styleguide report.
- */
 
 namespace Drupal\DrupalMoreExtensions\Context;
 
+use Behat\Behat\Hook\Scope\AfterScenarioScope;
+use Behat\Behat\Hook\Scope\BeforeScenarioScope;
+use Behat\Behat\Hook\Scope\AfterFeatureScope;
+use Behat\Behat\Hook\Scope\BeforeFeatureScope;
+use Behat\Testwork\Hook\Scope\AfterSuiteScope;
+use Behat\Testwork\Hook\Scope\BeforeSuiteScope;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 
 /**
@@ -44,7 +46,6 @@ class StyleguideContext extends ScreenshotContext {
    * @var string
    */
   protected $styleguideHtmlFilepath;
-
 
   /**
    * ScreenshotContext constructor.
@@ -90,12 +91,13 @@ class StyleguideContext extends ScreenshotContext {
   /**
    * @BeforeSuite
    */
-  public static function setup(\Behat\Testwork\Hook\Scope\BeforeSuiteScope $scope) {
+  public static function setup(BeforeSuiteScope $scope) {
     print __FUNCTION__;
   }
 
-  /** @AfterSuite */
-  public static function teardown(\Behat\Testwork\Hook\Scope\AfterSuiteScope $scope) {
+  /**
+   * @AfterSuite */
+  public static function teardown(AfterSuiteScope $scope) {
     print __FUNCTION__;
     // I WOULD LIKE TO:
     // Generate the styleguide HTML once here, at the end.
@@ -113,14 +115,16 @@ class StyleguideContext extends ScreenshotContext {
     // Nope.
   }
 
-  /** @BeforeFeature */
-  public static function beforeFeature(\Behat\Behat\Hook\Scope\BeforeFeatureScope $scope) {
-    # print __FUNCTION__;
+  /**
+   * @BeforeFeature */
+  public static function beforeFeature(BeforeFeatureScope $scope) {
+    // Print __FUNCTION__;.
   }
 
-  /** @AfterFeature */
-  public static function afterFeature(\Behat\Behat\Hook\Scope\AfterFeatureScope $scope) {
-    # print __FUNCTION__;
+  /**
+   * @AfterFeature */
+  public static function afterFeature(AfterFeatureScope $scope) {
+    // Print __FUNCTION__;.
   }
 
   /**
@@ -137,24 +141,21 @@ class StyleguideContext extends ScreenshotContext {
    *
    * @BeforeScenario
    */
-  public function beforeScenario(\Behat\Behat\Hook\Scope\BeforeScenarioScope $scope) {
-    # print __FUNCTION__;
+  public function beforeScenario(BeforeScenarioScope $scope) {
+    // Print __FUNCTION__;.
   }
-
 
   /**
    * Wrap up the styleguide display and generate summary.
    *
-   * http://behat.readthedocs.org/en/v3.0/guides/3.hooks.html#scenario-hooks
+   * Http://behat.readthedocs.org/en/v3.0/guides/3.hooks.html#scenario-hooks.
    *
    * @AfterScenario
    */
-  public function afterScenario(\Behat\Behat\Hook\Scope\AfterScenarioScope $scope) {
-    # print __FUNCTION__;
+  public function afterScenario(AfterScenarioScope $scope) {
+    // Print __FUNCTION__;.
     $this->rebuildTheStyleguide();
   }
-
-
 
   /**
    * Used to generate a larger report summary of snapshotted elements.
@@ -217,7 +218,6 @@ class StyleguideContext extends ScreenshotContext {
     // Currently rebuilding on every update. Do that less...
     // $this->rebuildTheStyleguide();
     // Shifted into the teardown now :-)
-
   }
 
   /**
@@ -313,7 +313,6 @@ class StyleguideContext extends ScreenshotContext {
     imagecopyresampled($thumb_image, $src_image, 0, 0, 0, 0, $newwidth, $newheight, $width, $height);
     imagepng($thumb_image, $context_filepath);
   }
-
 
   /**
    * Either fetch and load, or initialize a new RSS-like data storage XML file.

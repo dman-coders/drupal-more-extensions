@@ -1,6 +1,9 @@
 <?php
 
 namespace Drupal\DrupalMoreExtensions\Context;
+
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Client;
 use Behat\MinkExtension\Context\RawMinkContext;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\SetCookie;
@@ -17,9 +20,8 @@ class BrowserContext extends RawMinkContext {
    * @Given I wait :arg1 seconds
    */
   public function iWaitSeconds($seconds) {
-    $this->getSession()->wait((int)$seconds * 1000);
+    $this->getSession()->wait((int) $seconds * 1000);
   }
-
 
   /**
    * @Given I select vertical tab :arg1
@@ -44,7 +46,6 @@ class BrowserContext extends RawMinkContext {
     }
   }
 
-
   /**
    * @Then /^I fill in ckeditor on field "([^"]*)" with "([^"]*)"$/
    *
@@ -57,12 +58,11 @@ class BrowserContext extends RawMinkContext {
 
   /**
    * @Then /^I fill in tinymce on field "([^"]*)" with "([^"]*)"$/
-   *
    */
   public function iFillInTinyMCEOnFieldWith($locator, $value) {
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
-    if (null === $field) {
+    if (NULL === $field) {
       throw $this->elementNotFound('form field', 'id|name|label|value', $locator);
     }
     $field_id = $field->getAttribute('id');
@@ -79,14 +79,13 @@ class BrowserContext extends RawMinkContext {
   public function stepIFillInTheHtmlFieldWith($field, $value) {
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
-    if (null === $field) {
+    if (NULL === $field) {
       throw $this->elementNotFound('form field', 'id|name|label|value', $locator);
     }
     $field_id = $field->getAttribute('id');
     $safe_value = addcslashes($value, "'");
     // TODO?
- }
-
+  }
 
   /**
    * @When /^I try to download "([^"]*)"$/
@@ -113,7 +112,7 @@ class BrowserContext extends RawMinkContext {
     $driver = $this
       ->getSession()
       ->getDriver();
-    if (! method_exists($driver, 'getWebDriverSession')) {
+    if (!method_exists($driver, 'getWebDriverSession')) {
       // We are just running goutte or something similar.
       // GET the URL normally and Check the response as usual.
       $driver->visit($url);
@@ -137,7 +136,7 @@ class BrowserContext extends RawMinkContext {
       $jar->setCookie($cookie);
     }
 
-    $client = new \GuzzleHttp\Client([
+    $client = new Client([
       'base_uri' => $this->getSession()->getCurrentUrl(),
       'cookies' => $jar,
     ]);
@@ -147,7 +146,8 @@ class BrowserContext extends RawMinkContext {
       $response = $client->get($url);
       $this->headers = $response->getHeaders();
       $this->statusCode = $response->getStatusCode();
-    } catch (\GuzzleHttp\Exception\ClientException $e) {
+    }
+    catch (ClientException $e) {
       print $e->getMessage();
     }
 
@@ -181,7 +181,7 @@ class BrowserContext extends RawMinkContext {
       throw new \Exception(sprintf("Header did not contain %s.", $header));
     }
     // Header values are supplied as an array.
-    if (! in_array($value, $this->headers[$header]) ) {
+    if (!in_array($value, $this->headers[$header])) {
       throw new \Exception(sprintf("Header %s did not contain value %s.", $header, $value));
     }
   }

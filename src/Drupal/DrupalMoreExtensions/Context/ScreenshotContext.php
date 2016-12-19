@@ -1,13 +1,9 @@
 <?php
-/**
- * @file
- * Application features (actions) for working with screenshots.
- */
 
 namespace Drupal\DrupalMoreExtensions\Context;
 
+use Behat\Mink\Exception\ElementNotFoundException;
 use Behat\MinkExtension\Context\RawMinkContext;
-use Behat\MinkExtension\Context\MinkAwareContext;
 
 /**
  * Defines application features (actions) for working with screenshots.
@@ -108,10 +104,9 @@ class ScreenshotContext extends RawMinkContext {
     $this->ensureDirectoryExists($this->path);
     $this->timestamped = (bool) $params['timestamped'];
     $this->started = new \DateTime();
-    # TODO - the start time is currently only per-scanario, to per test run.
-    # so it's not doing its job as a collective run-task grouper.
+    // TODO - the start time is currently only per-scanario, to per test run.
+    // so it's not doing its job as a collective run-task grouper.
   }
-
 
   /**
    * Set the browser width.
@@ -157,7 +152,6 @@ class ScreenshotContext extends RawMinkContext {
     }
   }
 
-
   /**
    * Take a snapshot of the browser.
    *
@@ -182,7 +176,7 @@ class ScreenshotContext extends RawMinkContext {
   /**
    * This works for the Goutte driver and I assume other HTML-only ones.
    *
-   * http://stackoverflow.com/questions/22630350/how-can-i-write-a-behat-step-that-will-capture-a-screenshot-or-html-page
+   * Http://stackoverflow.com/questions/22630350/how-can-i-write-a-behat-step-that-will-capture-a-screenshot-or-html-page.
    *
    * @Then /^show me the HTML page$/
    */
@@ -221,7 +215,7 @@ class ScreenshotContext extends RawMinkContext {
   /**
    * Locate a named element in the current page and snapshot just that.
    *
-   * https://gist.github.com/amenk/11208415
+   * Https://gist.github.com/amenk/11208415
    *
    * @param string $selector
    *   The selector defined here is expected to be a jquery selector.
@@ -239,16 +233,14 @@ class ScreenshotContext extends RawMinkContext {
   public function takeScreenshotOfAndSaveAs($selector, $filename) {
 
     // Element must be visible on screen - scroll if needed.
-
     // First assert the element selector can be found.
     // I attempted to use the same logic that MinkContext elementExists() does,
     // but failed. Instead:
     $javascript = 'return jQuery("' . $selector . '")[0];';
     $element = $this->getSession()->evaluateScript($javascript);
     if (NULL === $element) {
-      throw new \Behat\Mink\Exception\ElementNotFoundException($this->getSession()->getDriver(), 'element', 'id|name|label|value|placeholder', $selector);
+      throw new ElementNotFoundException($this->getSession()->getDriver(), 'element', 'id|name|label|value|placeholder', $selector);
     }
-
 
     // Scroll to align bottom by default (if needed) as align top usually
     // doesn't tell the right story.
@@ -334,7 +326,6 @@ class ScreenshotContext extends RawMinkContext {
       exec('open -a "Preview.app" ' . $filepath);
     }
   }
-
 
   /**
    * Returns the relative file path for the given step.

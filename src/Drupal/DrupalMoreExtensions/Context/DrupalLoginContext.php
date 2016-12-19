@@ -2,6 +2,7 @@
 
 namespace Drupal\DrupalMoreExtensions\Context;
 
+use Behat\Mink\Exception\DriverException;
 use Drupal\DrupalExtension\Context\RawDrupalContext;
 
 /**
@@ -11,7 +12,7 @@ class DrupalLoginContext extends RawDrupalContext {
 
 
   /**
-   * Keep track of available users - provided by the behat.local.yml
+   * Keep track of available users - provided by the behat.local.yml.
    *
    * This is different from the $users list which is managed by
    * RawDrupalContext and enumerates the temporary test users
@@ -23,7 +24,6 @@ class DrupalLoginContext extends RawDrupalContext {
 
   /**
    * We expect to be given an array of user accounts.
-   *
    *
    * The yml can set them during setup as so:
    *
@@ -48,7 +48,6 @@ class DrupalLoginContext extends RawDrupalContext {
       'member' => array('username' => 'dummy', 'password' => 'dummy'),
     );
     $this->user_credentials = $users;
-    //
   }
 
   /**
@@ -63,7 +62,6 @@ class DrupalLoginContext extends RawDrupalContext {
       $this->logout();
     }
   }
-
 
   /**
    * @Given I log in to Drupal as :arg1 with password :arg2
@@ -81,7 +79,6 @@ class DrupalLoginContext extends RawDrupalContext {
     $submit = $element->findButton('Log in');
     $submit->click();
     // Verify that this worked.
-
     $actual = $this->getSession()->getPage()->getContent();
     // Find the message. Drupal MessageContext can't be called from here?
     $selectorObjects = $this->getSession()->getPage()->findAll("css", '.messages');
@@ -91,7 +88,7 @@ class DrupalLoginContext extends RawDrupalContext {
     }
 
     if (!$this->loggedIn()) {
-      #print_r($actual);
+      // print_r($actual);
       print_r($messages);
       throw new \Exception(sprintf("Failed to log in as user '%s'. '%s'", $username, $messages));
     }
@@ -118,7 +115,7 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * BROKEN
+   * BROKEN.
    *
    * @Given I remember cookies
    *
@@ -145,38 +142,37 @@ class DrupalLoginContext extends RawDrupalContext {
     $driver = $session->getDriver();
     $wdSession = $driver->getWebDriverSession();
 
-
     // If there was a session running, check its headers for cookies.
     try {
       if (!empty($session->getCurrentUrl())) {
         $response_headers = $driver->getResponseHeaders();
         // print_r($response_headers);
       }
-    } catch (\Behat\Mink\Exception\DriverException $e) {
-      //  Unable to access the request before visiting a page.
+    }
+    catch (DriverException $e) {
+      // Unable to access the request before visiting a page.
       // Ignore it then.
     }
 
     // Restore any cookies that were set.
     $remembered_cookies = isset($session->remember_cookies) ? $session->remember_cookies : array();
-    #print "\nRemembered Cookies\n";
-    #print_r($remembered_cookies);
-    # $browser_cookies = $wdSession->getAllCookies();
-    #print "\nBrowser Cookies\n";
-    #print_r($browser_cookies);
-
+    // Print "\nRemembered Cookies\n";
+    // print_r($remembered_cookies);
+    // $browser_cookies = $wdSession->getAllCookies();
+    // print "\nBrowser Cookies\n";
+    // print_r($browser_cookies);
     // Restore them from memory INTO the browser if missing.
     foreach ($remembered_cookies as $cookie_info) {
       if (!$session->getCookie($cookie_info['name'])) {
-        # $cookie_data = urldecode($cookie_info['value']);
+        // $cookie_data = urldecode($cookie_info['value']);.
         $session->setCookie($cookie_info['name'], urldecode($cookie_info['value']));
       }
     }
 
     // Abuse the object by adding data directly to it.
-    #$allValues = $driver->getCookieJar()->allValues($this->getCurrentUrl());
-    #$browser_cookies = $wdSession->getAllCookies();
-    #$session->remember_cookies = $browser_cookies;
+    // $allValues = $driver->getCookieJar()->allValues($this->getCurrentUrl());
+    // $browser_cookies = $wdSession->getAllCookies();
+    // $session->remember_cookies = $browser_cookies;.
   }
 
   /**
@@ -185,16 +181,15 @@ class DrupalLoginContext extends RawDrupalContext {
    */
   private function _responseContains($text) {
     // Beware premature response-checking! It throws exception.
-    if ((! $this->getSession()) || (! $this->getSession()->getPage())) {
+    if ((!$this->getSession()) || (!$this->getSession()->getPage())) {
       return FALSE;
     }
     // TODO find how to safely check if there even is a response to check.
     $actual = @$this->getSession()->getPage()->getContent();
 
-    $regex  = '/'.preg_quote($text, '/').'/ui';
-    return(bool) preg_match($regex, $actual);
+    $regex  = '/' . preg_quote($text, '/') . '/ui';
+    return (bool) preg_match($regex, $actual);
   }
-
 
   /**
    * @Given I am logged in as user :name
@@ -204,21 +199,16 @@ class DrupalLoginContext extends RawDrupalContext {
    */
   public function iAmLoggedInAsUser($name) {
     echo("Getting logged in as $name");
-    #$this->printDebug(print_r($this->getMainContext(), 1));
-
+    // $this->printDebug(print_r($this->getMainContext(), 1));.
     if (!isset($this->users[$name])) {
       throw new \Exception(sprintf('No user with %s name is registered with the DrupalLoginContext driver.', $name));
     }
 
-
     // Change internal current user.
-    // $this->user = $this->users[$name];
-
+    // $this->user = $this->users[$name];.
   }
 
-
-
-/**
+  /**
    * Passive login check.
    *
    * @Given I am authenticated with Drupal as (user) :arg1 with password :arg2
@@ -231,7 +221,6 @@ class DrupalLoginContext extends RawDrupalContext {
    *
    * Inspired by a solution found at
    * http://robinvdvleuten.nl/blog/handle-authenticated-users-in-behat-mink/
-   *
    */
   public function iAmAuthenticatedWithDrupalAsWithPassword($username, $password) {
     $session = $this->getSession();
@@ -250,17 +239,15 @@ class DrupalLoginContext extends RawDrupalContext {
     }
   }
 
-
   /**
    * Dangerous, and currently requires drush only.
    *
    * @Given I reset the admin password to :arg1
    */
-  public function iResetTheAdminPasswordTo($password)
-  {
+  public function iResetTheAdminPasswordTo($password) {
     // HOW TO ENSURE driver is drush?
-    if (TRUE || $driver_is_drush ) {
-      // Before I can reset uid1 pass, I need to know its name;
+    if (TRUE || $driver_is_drush) {
+      // Before I can reset uid1 pass, I need to know its name;.
       $drush_response = $this->getDriver()->drush('user-information --fields=name --format=json 1');
       $info = json_decode($drush_response);
       if (!empty($info)) {
@@ -288,13 +275,11 @@ class DrupalLoginContext extends RawDrupalContext {
     // Need to run this (login session) from blackbox.
     // BUT need to run from API first to get the backdoor to reset admin.
     // If I run as API I get blackbox also.
-
     // Can I tell if I'm running in API/drush context?
-    #print_r(array_keys((array)$this));
-
+    // print_r(array_keys((array)$this));.
     print("Generating superuser password reset/back-end login");
     $drush_response = trim($this->getDriver()->drush('user-login --browser=0 1'));
-    // I now have a login reset link for UID1
+    // I now have a login reset link for UID1.
     $url_parts = parse_url($drush_response);
     // If drush and our session disagree about what the base URL is,
     // due to ports or DNS, that's sad. So just re-resolve the path.
@@ -302,14 +287,14 @@ class DrupalLoginContext extends RawDrupalContext {
     $actual = $this->getSession()->getPage()->getContent();
     // I should see superadmin username etc.
     // TODO a test here to check the text on the reset page.
-    #print_r($actual);
+    // print_r($actual);
   }
 
   /**
-   * UNTESTED
+   * UNTESTED.
    *
    * Credits https://github.com/previousnext/agov/blob/7.x-3.x/tests/behat/bootstrap/FeatureContext.php
-   * for drupalextension 1.0 version
+   * for drupalextension 1.0 version.
    *
    * @Given /^an "([^"]*)" user named "([^"]*)"$/
    */
@@ -328,7 +313,7 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * UNTESTED - assumes core driver
+   * UNTESTED - assumes core driver.
    *
    * Creates and authenticates a user with the given role via Drush.
    *
@@ -377,7 +362,7 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * INCOMPLETE
+   * INCOMPLETE.
    *
    * Create the named role if it does not exist.
    *
