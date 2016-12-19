@@ -89,6 +89,8 @@ class StyleguideContext extends ScreenshotContext {
   }
 
   /**
+   * Debugging Experimental Stub.
+   *
    * @BeforeSuite
    */
   public static function setup(BeforeSuiteScope $scope) {
@@ -96,6 +98,8 @@ class StyleguideContext extends ScreenshotContext {
   }
 
   /**
+   * Debugging Experimental Stub.
+   *
    * @AfterSuite */
   public static function teardown(AfterSuiteScope $scope) {
     print __FUNCTION__;
@@ -116,12 +120,16 @@ class StyleguideContext extends ScreenshotContext {
   }
 
   /**
+   * Debugging Experimental Stub.
+   *
    * @BeforeFeature */
   public static function beforeFeature(BeforeFeatureScope $scope) {
     // Print __FUNCTION__;.
   }
 
   /**
+   * Debugging Experimental Stub.
+   *
    * @AfterFeature */
   public static function afterFeature(AfterFeatureScope $scope) {
     // Print __FUNCTION__;.
@@ -175,7 +183,7 @@ class StyleguideContext extends ScreenshotContext {
     $this->generateContextualizedScreenshotOfElement($dst_filepath, $context_filepath);
 
     // Append this new entry to the running list.
-    $channel = $this->getStyleguideDOM($this->styleguideDataFilepath);
+    $channel = $this->getStyleguideDom($this->styleguideDataFilepath);
     $xml = $channel->ownerDocument;
     $media_ns = "http://search.yahoo.com/mrss/";
 
@@ -237,7 +245,7 @@ class StyleguideContext extends ScreenshotContext {
   public function rebuildTheStyleguide() {
     // After updating the item list, regenerate the HTML also, to
     // avoid XSLT for folk that don't play that.
-    $xslt = new \XsltProcessor();
+    $xslt = new \XSLTProcessor();
     $xsl = new \DOMDocument();
     $xsl->load($this->xslFilepath);
     $xslt->importStylesheet($xsl);
@@ -254,14 +262,14 @@ class StyleguideContext extends ScreenshotContext {
     // Inlining this would have been much easier ;-).
     // In fact, spitting out HTML and not doing XSL would too.
     //
-    // Using getStyleguideDOM will return a valid, empty datadoc even if no data
+    // Using getStyleguideDom will return a valid, empty datadoc even if no data
     // is initialized yet.
     // So will produce an empty styleguide if no snapshots were run yet.
     // But not NULL, which would require more error handling.
     $channel = $this->getStyleguideDOM($this->styleguideDataFilepath);
     $xml = $channel->ownerDocument;
 
-    $html = $xslt->transformToXML($xml);
+    $html = $xslt->transformToXml($xml);
     file_put_contents($this->styleguideHtmlFilepath, $html);
     print("Updated Styleguide $this->styleguideHtmlFilepath");
   }
@@ -323,7 +331,7 @@ class StyleguideContext extends ScreenshotContext {
    * @return \DOMElement
    *   Dom to add data to (or pull from).
    */
-  private function getStyleguideDOM($filepath) {
+  private function getStyleguideDom($filepath) {
     $media_ns = "http://search.yahoo.com/mrss/";
     if (is_file($filepath)) {
       $xml = new \DOMDocument();

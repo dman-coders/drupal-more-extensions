@@ -20,7 +20,7 @@ class DrupalLoginContext extends RawDrupalContext {
    *
    * @var array
    */
-  protected $user_credentials = array();
+  protected $userCredentials = array();
 
   /**
    * We expect to be given an array of user accounts.
@@ -37,7 +37,8 @@ class DrupalLoginContext extends RawDrupalContext {
    *               username: admin
    *               password: adminpass
    *
-   * @param $users
+   * @param array[] $users
+   *   List of basic user definitions.
    */
   public function __construct($users = array()) {
     echo('Constructing DrupalLoginContext, initializing user credentials');
@@ -47,11 +48,12 @@ class DrupalLoginContext extends RawDrupalContext {
       'editor' => array('username' => 'dummy', 'password' => 'dummy'),
       'member' => array('username' => 'dummy', 'password' => 'dummy'),
     );
-    $this->user_credentials = $users;
+    $this->userCredentials = $users;
   }
 
   /**
-   * Just a check to assert that this library is being included correctly.
+   * Check to assert that this library is being included correctly.
+   *
    * Used for internal testing of the features only.
    *
    * @Given I have DrupalLoginContext available
@@ -64,11 +66,20 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * @Given I log in to Drupal as :arg1 with password :arg2
+   * Drupal-specific front-end login.
    *
    * This is a declaritive action, not just a precondition.
    * This will always clear any existing session and go through the login
    * screens. Use "I am Authenticated" for a smoother ride.
+   *
+   * @param string $username
+   *   Existing user.
+   * @param string $password
+   *   Existing password.
+   *
+   * @throws \Exception
+   *
+   * @Given I log in to Drupal as :arg1 with password :arg2
    */
   public function iLogInToDrupalAsWithPassword($username, $password) {
     $this->logout();
@@ -96,11 +107,13 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * @Given I log in to OpenID as :arg1 with password :arg2
+   * Perform login using given credentials.
    *
    * This is a declaritive action, not just a precondition.
    * This will always clear any existing session and go through the login
    * screens. Use "I am Authenticated" for a smoother ride.
+   *
+   * @Given I log in to OpenID as :arg1 with password :arg2
    */
   public function iLogInToOpenidAsWithPassword($username, $password) {
     // The session is actually destroyed for each case, so yeah,
@@ -115,11 +128,10 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
+   * Serialize browser cookies within the current session.
+   *
    * BROKEN.
-   *
-   * @Given I remember cookies
-   *
-   * Broken in Behat 3 - used to work in Behat 1. with Seleniums WDriver
+   * Broken in Behat 3 - used to work in Behat 1. with Seleniums WDriver.
    *
    * This will save any current browser cookies into test-session memory
    * and retrieve any cookies out of the session memory if missing, restoring
@@ -136,6 +148,8 @@ class DrupalLoginContext extends RawDrupalContext {
    *
    * Thus, we need to dig into the sessions web driver a bit deeper.
    * Problem is, the CoreDriver has made its $client private.
+   *
+   * @Given I remember cookies
    */
   public function iRememberCookies() {
     $session = $this->getSession();
@@ -177,7 +191,9 @@ class DrupalLoginContext extends RawDrupalContext {
 
   /**
    * Utility for checking text.
-   * There is probably an available lib for this elsewhere, but it's hard to find.
+   *
+   * There is probably an available lib for this elsewhere,
+   * but it's hard to find.
    */
   private function _responseContains($text) {
     // Beware premature response-checking! It throws exception.
@@ -192,10 +208,12 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * @Given I am logged in as user :name
+   * Checks user is authenticated.
    *
    * Requires that this extension was configured to know the usernames and
    * passwords already, probably passed in via the behat.local.yml config.
+   *
+   * @Given I am logged in as user :name
    */
   public function iAmLoggedInAsUser($name) {
     echo("Getting logged in as $name");
@@ -209,10 +227,7 @@ class DrupalLoginContext extends RawDrupalContext {
   }
 
   /**
-   * Passive login check.
-   *
-   * @Given I am authenticated with Drupal as (user) :arg1 with password :arg2
-   * @Given I am logged in as (user) :arg1 with password :arg2
+   * Passive login check. Logs in if needed.
    *
    * Similar to iLogIn, but checks to see if it's really neccessary
    * to do the login. Does it if needed, but re-uses the session if not.
@@ -221,6 +236,9 @@ class DrupalLoginContext extends RawDrupalContext {
    *
    * Inspired by a solution found at
    * http://robinvdvleuten.nl/blog/handle-authenticated-users-in-behat-mink/
+   *
+   * @Given I am authenticated with Drupal as (user) :arg1 with password :arg2
+   * @Given I am logged in as (user) :arg1 with password :arg2
    */
   public function iAmAuthenticatedWithDrupalAsWithPassword($username, $password) {
     $session = $this->getSession();

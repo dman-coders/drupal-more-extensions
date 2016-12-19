@@ -16,7 +16,24 @@ use GuzzleHttp\Cookie\SetCookie;
  */
 class BrowserContext extends RawMinkContext {
 
+
   /**
+   * HTTP status of the last request.
+   *
+   * @var string
+   */
+  protected $statusCode;
+
+  /**
+   * HTTP headers from the last request.
+   *
+   * @var string[]
+   */
+  protected $headers;
+
+  /**
+   * Wait a bit.
+   *
    * @Given I wait :arg1 seconds
    */
   public function iWaitSeconds($seconds) {
@@ -24,6 +41,8 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
+   * Select a tab.
+   *
    * @Given I select vertical tab :arg1
    *
    * Useful on edit forms.
@@ -47,19 +66,33 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
-   * @Then /^I fill in ckeditor on field "([^"]*)" with "([^"]*)"$/
+   * Add text to WYSIWYG.
    *
    * Stolen from https://alfrednutile.info/posts/68 so we can test
-   * adding WYSIWYG content
+   * adding WYSIWYG content.
+   *
+   * @param string $locator
+   *   Field ID (or name, css selector or xpath).
+   * @param string $value
+   *   Form field content.
+   *
+   * @Then /^I fill in ckeditor on field "([^"]*)" with "([^"]*)"$/
    */
-  public function iFillInCKEditorOnFieldWith($arg, $arg2) {
-    $this->getSession()->executeScript("CKEDITOR.instances.$arg.setData(\"$arg2\");");
+  public function iFillInCkEditorOnFieldWith($locator, $value) {
+    $this->getSession()->executeScript("CKEDITOR.instances.$locator.setData(\"$value\");");
   }
 
   /**
+   * Add text to WYSIWYG.
+   *
+   * @param string $locator
+   *   Field ID (or name, css selector or xpath).
+   * @param string $value
+   *   Form field content.
+   *
    * @Then /^I fill in tinymce on field "([^"]*)" with "([^"]*)"$/
    */
-  public function iFillInTinyMCEOnFieldWith($locator, $value) {
+  public function iFillInTinyMceOnFieldWith($locator, $value) {
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
     if (NULL === $field) {
@@ -71,12 +104,19 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
+   * Set value of a field.
+   *
+   * @param string $locator
+   *   Field ID (or name, css selector or xpath).
+   * @param string $value
+   *   Form field content.
+   *
+   * @see http://behattest.blogspot.co.nz/2014/08/two-ways-to-fill-value-in-html-editor.html
+   *
    * @When /^I fill in the "(?P<field>([^"]*))" HTML field with "(?P<value>([^"]*))"$/
    * @When /^I fill in "(?P<value>([^"]*))" for the "(?P<field>([^"]*))" HTML field$/
-   *
-   * http://behattest.blogspot.co.nz/2014/08/two-ways-to-fill-value-in-html-editor.html
    */
-  public function stepIFillInTheHtmlFieldWith($field, $value) {
+  public function iFillInTheHtmlFieldWith($locator, $value) {
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
     if (NULL === $field) {
@@ -88,14 +128,12 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
-   * @When /^I try to download "([^"]*)"$/
+   * Download a file.
    *
    * The Selenium or Webdriver sessions do not allow us access to the
    * HTTP Response code if we just 'get' a page. Also, getting a PDF
    * Stalls the browser interaction and we get stuck.
    * Instead use iTryToDownload() to retrieve a file and get the headers.
-   *
-   * https://www.jverdeyen.be/php/behat-file-downloads/
    *
    * Tested with
    * phantomjs 2.1.1,
@@ -104,6 +142,12 @@ class BrowserContext extends RawMinkContext {
    * Goutte 3.1.2.
    *
    * @param string $url
+   *   URL to try and retrieve.
+   *
+   * @see BrowserContext::theDownloadResponseStatusCodeShouldBe()
+   * @see https://www.jverdeyen.be/php/behat-file-downloads/
+   *
+   * @When /^I try to download "([^"]*)"$/
    */
   public function iTryToDownload($url) {
     // Need to make an out-of-band request to the URL in question
@@ -156,12 +200,16 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
-   * @Then /^the download response status code should be "?(?P<code>\d+)"?$/
-   *
-   * https://www.jverdeyen.be/php/behat-file-downloads/
+   * Check HTTP response code.
    *
    * @param int $statusCode
    *   HTTP response code, eg 200, 403.
+   *
+   * @throws \Exception
+   *
+   * @see https://www.jverdeyen.be/php/behat-file-downloads/
+   *
+   * @Then /^the download response status code should be "?(?P<code>\d+)"?$/
    */
   public function theDownloadResponseStatusCodeShouldBe($statusCode) {
     $responseStatusCode = $this->statusCode;
@@ -172,9 +220,18 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
-   * @Then /^the download response header should contain "([^"]*)":"([^"]*)"$/
+   * Check HTTP Reponse header.
    *
-   * https://www.jverdeyen.be/php/behat-file-downloads/
+   * @param string $header
+   *   Header id.
+   * @param string $value
+   *   Search string.
+   *
+   * @throws \Exception
+   *
+   * @see https://www.jverdeyen.be/php/behat-file-downloads/
+   *
+   * @Then /^the download response header should contain "([^"]*)":"([^"]*)"$/
    */
   public function theDownloadResponseHeaderShouldContain($header, $value) {
     if (empty($this->headers[$header])) {
