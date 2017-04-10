@@ -306,4 +306,59 @@ class BrowserContext extends RawMinkContext {
     }
   }
 
+  /**
+   * Select a frame by its name or ID.
+   *
+   * @see https://github.com/Behatch/contexts/blob/master/src/Context/BrowserContext.php
+   * @see https://gist.github.com/alnutile/8365567
+   *
+   * @When (I )switch to iframe :name
+   * @When (I )switch to frame :name
+   */
+  public function switchToIFrame($locator) {
+    // Mink switchToIFrame requires just the ID. So need to resolve selectors.
+    $iframe = $this->getSession()->getPage()->find("css", $locator);
+    $iframeName = $iframe->getAttribute("id");
+    if (empty($iframeName)) {
+      throw new \Exception(sprintf("Did not find a named iframe '%'.", $locator));
+    }
+    $this->getSession()->switchToIFrame($iframeName);
+  }
+  /**
+   * Go back to main document frame.
+   *
+   * @When (I )switch to main frame
+   */
+  public function switchToMainFrame() {
+    $this->getSession()->switchToIFrame();
+  }
+
+  /**
+   * To emulate file upload via drag & drop, strange magic.
+   *
+   * @see http://thinkmoult.com/using-sahi-mink-behat-test-html5-drag-drop-file-uploads/
+   *
+   * @When (I )drop file :file onto (element ):locator
+   */
+  public function dropFileIntoElement($file, $locator) {
+    $session = $this->getSession();
+    $session->evaluateScript("
+      myfile = new Blob([atob('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAAAAABVicqIAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA\
+B3RJTUUH3gIYBAEMHCkuWQAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUH\
+AAAAQElEQVRo3u3NQQ0AAAgEoNN29i9kCh9uUICa3OtIJBKJRCKRSCQSiUQikUgkEolEIpFIJBKJ\
+RCKRSCQSiUTyPlnSFQER9VCp/AAAAABJRU5ErkJggg==')], {type: 'image/png'});
+      myfile.name = 'myfile.png';
+      myfile.lastModifiedDate = new Date();
+      myfile.webkitRelativePath = '';
+      fileList = Array(myfile);
+      e = jQuery.Event('drop');
+      e.dataTransfer = { files: fileList };
+      jQuery('$locator').bind('drop',function(n){alert('Drooped on');console.log(n)});
+      jQuery('$locator').trigger(e);
+      // Trigger seems to not work great
+      // $('$locator').get(0).dispatchEvent(e)
+    ");
+    $session->wait(1000);
+  }
+  
 }
