@@ -40,6 +40,22 @@ class BrowserContext extends RawMinkContext {
     $this->getSession()->wait((int) $seconds * 1000);
   }
 
+
+  /**
+   * Checks, that element with specified CSS contains specified attribute.
+   *
+   * MinkExtension provides it almost, but does not expose it.
+   *
+   * @see Behat\MinkExtension\Context::assertElementContains
+   * @see Drupal\DrupalExtension\Context::assertRegionElementAttribute
+   *
+   * @Then /^the "(?P<element>[^"]*)" element should contain "(?P<value>(?:[^"]|\\")*)" in its "(?P<attribute>(?:[^"]|\\")*)"( attribute)?$/
+   * @Then I( should) see the :element element with the :attribute attribute set to :value
+   */
+  public function assertAttributeContains($element, $value, $attribute) {
+    $this->assertSession()->elementAttributeContains('css', $element, $attribute, $value);
+  }
+
   /**
    * Select a tab.
    *
