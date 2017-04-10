@@ -93,8 +93,9 @@ class BrowserContext extends RawMinkContext {
    *   Form field content.
    *
    * @Then /^I fill in ckeditor on field "([^"]*)" with "([^"]*)"$/
+   * @When I fill in the :locator ckeditor field with :value
    */
-  public function iFillInCkEditorOnFieldWith($locator, $value) {
+  public function FillCkEditorField($locator, $value) {
     $this->getSession()->executeScript("CKEDITOR.instances.$locator.setData(\"$value\");");
   }
 
@@ -107,8 +108,9 @@ class BrowserContext extends RawMinkContext {
    *   Form field content.
    *
    * @Then /^I fill in tinymce on field "([^"]*)" with "([^"]*)"$/
+   * @When I fill in the :locator tinymce field with :value
    */
-  public function iFillInTinyMceOnFieldWith($locator, $value) {
+  public function FillTinyMceField($locator, $value) {
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
     if (NULL === $field) {
@@ -120,27 +122,72 @@ class BrowserContext extends RawMinkContext {
   }
 
   /**
-   * Set value of a field.
+   * Fills in form field with specified id|name|label|value
+   *
+   * Private copy of minkContext version, just so I can use $this
+   * inside fillWYSIWYGField().
+   */
+  private function fillField($field, $value) {
+    $this->getSession()->getPage()->fillField($field, $value);
+  }
+
+  /**
+   * Set value of a WYSIWYG field.
+   *
+   * This needs to work both with javascript on and off!
+   * With no js, adding content to the textfield works normally.
+   * With JS, we need to address the WYSIWYG libraries.
    *
    * @param string $locator
    *   Field ID (or name, css selector or xpath).
    * @param string $value
    *   Form field content.
    *
-   * @see http://behattest.blogspot.co.nz/2014/08/two-ways-to-fill-value-in-html-editor.html
+   * @return bool
+
+   * @throws \Behat\Mink\Exception\ElementNotFoundException
+   * @throws \Behat\Mink\Exception\ExpectationException
    *
-   * @When /^I fill in the "(?P<field>([^"]*))" HTML field with "(?P<value>([^"]*))"$/
-   * @When /^I fill in "(?P<value>([^"]*))" for the "(?P<field>([^"]*))" HTML field$/
+   * @see \Behat\MinkExtension\Context\MinkContext::fillField()
+   *
+   * @When I fill in the :locator WYSIWYG field with :value
    */
-  public function iFillInTheHtmlFieldWith($locator, $value) {
+  public function fillWYSIWYGField($locator, $value) {
+    // We need to first correctly identify the ID of something
+    // that may have been found by a locator pattern.
+    // Further logic requires the ID specifically.
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
     if (NULL === $field) {
-      throw $this->elementNotFound('form field', 'id|name|label|value', $locator);
+      throw new \Behat\Mink\Exception\ElementNotFoundException($this->getSession()->getDriver(), 'form field', 'id|name|label|value|placeholder', $locator);
     }
     $field_id = $field->getAttribute('id');
     $safe_value = addcslashes($value, "'");
-    // TODO?
+
+    // See if we can operate on either ckeditor or tinymce here.
+    // Do not look-ahead, just try everything and ignore the consequences.
+    // Ignore any fails if we eventually succeed.
+    $success = FALSE;
+    $failures = array();
+    foreach (array('fillTinyMceField', 'FillCkEditorField', 'fillField') as $callback) {
+      try {
+        $this->$callback($locator, $value);
+        // Errors may have happened ^ . But if not:
+        $success = TRUE;
+        return $success;
+      }
+      catch (\Exception $e) {
+        // Failure is always an option.
+        $failures[$callback] = $e;
+      }
+    }
+    // Summarize all fails if nothing succeeded.
+    $message = "Failed to communicate with WYSIWYG libraries\n";
+    foreach ($failures as $callback => $fail) {
+      $message .= "Error from attempting $callback:\n" . $fail->getMessage() . "\n";
+    }
+    $error_summary = new \Behat\Mink\Exception\ExpectationException($message, $this->getSession()->getDriver());
+    throw $error_summary;
   }
 
   /**
