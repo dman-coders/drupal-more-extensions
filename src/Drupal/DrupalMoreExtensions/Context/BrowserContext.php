@@ -5,6 +5,7 @@ namespace Drupal\DrupalMoreExtensions\Context;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Client;
 use Behat\MinkExtension\Context\RawMinkContext;
+use Behat\Mink\Exception\ElementNotFoundException;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\SetCookie;
 
@@ -54,6 +55,22 @@ class BrowserContext extends RawMinkContext {
    */
   public function assertAttributeContains($element, $value, $attribute) {
     $this->assertSession()->elementAttributeContains('css', $element, $attribute, $value);
+  }
+
+  /**
+   * @see http://stackoverflow.com/questions/33649518/how-can-i-click-a-span-in-behat
+   *
+   * click() may require Javascript if applied to non-"a" elements.
+   *
+   * @Given I click the :arg1 element
+   */
+  public function iClickTheElement($locator) {
+    $page = $this->getSession()->getPage();
+    $element = $page->find('css', $locator);
+    if (empty($element)) {
+      throw new ElementNotFoundException($this->getSession()->getDriver(), 'element', 'pattern', $locator);
+    }
+    $element->click();
   }
 
   /**
@@ -114,7 +131,7 @@ class BrowserContext extends RawMinkContext {
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
     if (NULL === $field) {
-      throw $this->elementNotFound('form field', 'id|name|label|value', $locator);
+      throw new ElementNotFoundException($this->getSession()->getDriver(), 'tinymce field', 'id|name|label|value|placeholder', $locator);
     }
     $field_id = $field->getAttribute('id');
     $safe_value = addcslashes($value, "'");
@@ -159,7 +176,7 @@ class BrowserContext extends RawMinkContext {
     $page = $this->getSession()->getPage();
     $field = $page->findField($locator);
     if (NULL === $field) {
-      throw new \Behat\Mink\Exception\ElementNotFoundException($this->getSession()->getDriver(), 'form field', 'id|name|label|value|placeholder', $locator);
+      throw new ElementNotFoundException($this->getSession()->getDriver(), 'form field', 'id|name|label|value|placeholder', $locator);
     }
     $field_id = $field->getAttribute('id');
     $safe_value = addcslashes($value, "'");
