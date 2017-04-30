@@ -56,25 +56,7 @@ class BrowserContext extends RawMinkContext {
   public function assertAttributeContains($element, $value, $attribute) {
     $this->assertSession()->elementAttributeContains('css', $element, $attribute, $value);
   }
-
-  /**
-   * Checks the content of the H1 header (not <title>)
-   *
-   * @Then /^the title should be "([^"]*)"$/
-   */
-  public function theTitleShouldBe($expectedTitle)
-  {
-    $titleElement = $this->getSession()->getPage()->find('css', 'h1');
-    if ($titleElement === null) {
-      throw new Exception('No H1 was found!');
-    } else {
-      $title = $titleElement->getText();
-      if ($expectedTitle !== $title) {
-        throw new Exception("Incorrect title! Expected:$expectedTitle | Actual:$title ");
-      }
-    }
-  }
-
+  
   /**
    * @see http://stackoverflow.com/questions/33649518/how-can-i-click-a-span-in-behat
    *
