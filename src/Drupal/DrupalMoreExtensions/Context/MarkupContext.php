@@ -88,7 +88,7 @@ class MarkupContext extends RawMinkContext {
   }
 
   /**
-   * @Then I( should) see the :block block
+   * @Then I( should) see a/the :block block
    */
   public function assertBlock($block) {
     $blockObj = $this->getBlock($block);
