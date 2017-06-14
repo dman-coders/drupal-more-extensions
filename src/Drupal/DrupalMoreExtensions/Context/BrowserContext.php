@@ -104,6 +104,17 @@ class BrowserContext extends RawMinkContext {
    * Stolen from https://alfrednutile.info/posts/68 so we can test
    * adding WYSIWYG content.
    *
+   * For multi-line input, syntax is:
+   *
+   * ```
+   *    And I fill in the "edit-body-0-value" ckeditor field with:
+   *      """
+   *      <h2>Jim Hacker</h2>
+   *      Hacker was an academic political researcher, polytechnic lecturer,
+   *      and editor of a newspaper, Reform, and entered Parliament circa 1961.
+   *      """
+   * ```
+   *
    * @param string $locator
    *   Field ID (or name, css selector or xpath).
    * @param string $value
@@ -111,9 +122,17 @@ class BrowserContext extends RawMinkContext {
    *
    * @Then /^I fill in ckeditor on field "([^"]*)" with "([^"]*)"$/
    * @When I fill in the :locator ckeditor field with :value
+   * @When /^(?:|I )fill in the "(?P<field>(?:[^"]|\\")*)" ckeditor field with:$/
    */
   public function FillCkEditorField($locator, $value) {
-    $this->getSession()->executeScript("CKEDITOR.instances.$locator.setData(\"$value\");");
+    // TODO: need to resolve the field normal name into a field id machine name
+    // like edit-body-0-value
+
+    // Need to make the input javascript-safe before calling the setData func.
+    // Quotes and newlines are problems.
+    $value = htmlspecialchars($value, ENT_QUOTES);
+    $value = preg_replace("%\n%", '\n', $value);
+    $this->getSession()->executeScript("CKEDITOR.instances[\"$locator\"].setData(\"$value\");");
   }
 
   /**
