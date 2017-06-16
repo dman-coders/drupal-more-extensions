@@ -33,6 +33,21 @@ class BrowserContext extends RawMinkContext {
   protected $headers;
 
   /**
+   * Status check on the browser.
+   *
+   * These scenarion commands should mostly be able to run under
+   * EITHER headless or full sessions.
+   */
+  public function javascriptIsEnabled() {
+    $driver = $this->getSession()->getDriver();
+    // The old days of browser-sniffing - instead of capability testing.
+    if (is_a($driver, 'BrowserKitDriver') || is_a($driver, 'GoutteDriver') || is_a($driver, 'Selenium2Driver') || is_a($driver, 'Behat\Mink\Driver\Selenium2Driver') ) {
+      return TRUE;
+    }
+    return FALSE;
+  }
+
+  /**
    * Wait a bit.
    *
    * @Given I wait :arg1 seconds
@@ -125,14 +140,23 @@ class BrowserContext extends RawMinkContext {
    * @When /^(?:|I )fill in the "(?P<field>(?:[^"]|\\")*)" ckeditor field with:$/
    */
   public function FillCkEditorField($locator, $value) {
-    // TODO: need to resolve the field normal name into a field id machine name
+    if (!$this->javascriptIsEnabled()) {
+      // The usual field filling library works as normal if no js.
+      return $this->fillField($locator, $value);
+    }
+
+    // TO communicate with ckeditor,
+    // need to resolve the field normal name into a field id machine name
     // like edit-body-0-value
+    $page = $this->getSession()->getPage();
+    $field = $page->findField($locator);
+    $field_id = $field->getAttribute('id');
 
     // Need to make the input javascript-safe before calling the setData func.
     // Quotes and newlines are problems.
     $value = htmlspecialchars($value, ENT_QUOTES);
     $value = preg_replace("%\n%", '\n', $value);
-    $this->getSession()->executeScript("CKEDITOR.instances[\"$locator\"].setData(\"$value\");");
+    $this->getSession()->executeScript("CKEDITOR.instances[\"$field_id\"].setData(\"$value\");");
   }
 
   /**
