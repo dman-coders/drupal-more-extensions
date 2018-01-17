@@ -36,16 +36,18 @@ class DrupalLoginContext extends RawDrupalContext {
    *     default:
    *       contexts:
    *         - Drupal\DrupalMoreExtensions\Context\DrupalLoginContext:
-   *           users:
-   *             admin:
-   *               name: admin
-   *               pass: adminpass
+   *             users:
+   *               admin:
+   *                 name: admin
+   *                 pass: adminpass
+   *
+   * (BEWARE INDENTATION ISSUES!)
    *
    * @param array[] $users
    *   List of basic user definitions.
    */
   public function __construct($users = array()) {
-    echo('Constructing DrupalLoginContext, initializing user credentials');
+    echo("Constructing DrupalLoginContext, initializing user credentials. \n");
     // The provided settings come in as arrays,
     // but the rest of the system (specifically $this->login()) expects
     // objects, so cast them to objects now.
@@ -435,6 +437,22 @@ class DrupalLoginContext extends RawDrupalContext {
   public function CreateRoleNamed($role_name) {
     // Create a new role.
     $this->getDriver()->roleCreate($role_name);
+  }
+
+  /**
+   * Deletes a user account.
+   *
+   * If a user with given email address exists, delete it.
+   * Uses the API driver.
+   *
+   * @Given the account with email :mail has been deleted
+   */
+  public function UserHasBeenDeleted ($mail) {
+    $driver = $this->getDriver();
+    $user = $driver->userInformation ($mail);
+    if ($user) {
+      $driver->userDelete ($user);
+    }
   }
 
 }
