@@ -50,7 +50,7 @@ class BrowserContext extends RawMinkContext {
   /**
    * Wait a bit.
    *
-   * @Given I wait :arg1 seconds
+   * @Given I wait( for) :arg1 second(s)
    */
   public function iWaitSeconds($seconds) {
     $this->getSession()->wait((int) $seconds * 1000);
