@@ -96,8 +96,22 @@ To include these new steps and actions,
 
 In behat.yml, include:
 
-  default:
-    suites:
-      default:
-        contexts:
-          - Drupal\DrupalMoreExtensions\Context\DrupalLoginContext
+    default:
+      suites:
+        default:
+          contexts:
+            - Drupal\DrupalMoreExtensions\Context\DrupalLoginContext
+
+If you want to use the "I am logged in as user :name" action, 
+pre-configure some users as below. 
+This will NOT create these users, use this to leverage existing accounts.
+                  
+          ...
+            - Drupal\DrupalMoreExtensions\Context\DrupalLoginContext:
+                users:
+                  admin:
+                    name: admin
+                    pass: adminpass
+                  member:
+                    name: "tester"
+                    pass: "tester"
